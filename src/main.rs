@@ -124,7 +124,13 @@ fn list() {
 struct Repo {
 	path: String,
 	tags: Vec<String>,
-	// remotes: Vec<Remote>,
+	remotes: Vec<Remote>,
+}
+
+impl Repo {
+	pub(crate) fn update_remotes(&self) {
+		println!("Grabbing url for {}", self.path);
+	}
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -144,8 +150,9 @@ fn add_repos(repo_folders: &Vec<String>) {
 		let repo = Repo {
 			path: repo_folder.to_owned(),
 			tags: Vec::new(),
-			// remotes: Vec::new(),
+			remotes: Vec::new(),
 		};
+		repo.update_remotes();
 		repos.push(repo);
 	}
 	save(&*repos); // &* to pass as *immutable* (dereference+reference) https://stackoverflow.com/questions/41366896/how-to-make-a-rust-mutable-reference-immutable/41367094#41367094
