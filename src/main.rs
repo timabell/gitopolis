@@ -138,7 +138,7 @@ fn list() {
 struct Repo {
 	path: String,
 	tags: Vec<String>,
-	remotes: Vec<Remote>,
+	remotes: BTreeMap<String, Remote>,
 }
 
 /// hacky call to external git command to get url of origin
@@ -166,16 +166,25 @@ fn add_repos(repo_folders: &Vec<String>) {
 			println!("{} already added, ignoring.", repo_folder);
 			continue;
 		}
+
+		// todo: read all remotes, not just origin https://github.com/timabell/gitopolis/issues/7
 		let remote_name = "origin";
+
 		let url = read_url(repo_folder, remote_name);
+
+		let mut remotes: BTreeMap<String, Remote> = BTreeMap::new();
+		remotes.insert(
+			remote_name.to_owned(),
+			Remote {
+				name: remote_name.to_owned(),
+				url,
+			},
+		);
+
 		let repo = Repo {
 			path: repo_folder.to_owned(),
 			tags: Vec::new(),
-			remotes: [Remote {
-				name: remote_name.to_string(),
-				url,
-			}]
-			.to_vec(),
+			remotes,
 		};
 		repos.push(repo);
 	}
@@ -194,11 +203,12 @@ fn remove_repos(repo_folders: &Vec<String>) {
 }
 
 fn save(repos: &Vec<Repo>) {
-	let mut named_container = BTreeMap::new();
-	named_container.insert("repos", repos);
+	let root: BTreeMap<_, _> = repos.iter().map(|r| (r.path.to_owned(), r)).collect();
+	// let mut named_container = BTreeMap::new();
+	// let mut named_container = HashMap::new();
+	// named_container.insert("repos", repos);
 
-	let state_toml =
-		toml::to_string(&named_container).expect("Failed to generate toml for repo list");
+	let state_toml = toml::to_string(&root).expect("Failed to generate toml for repo list");
 
 	fs::write(STATE_FILENAME, state_toml).expect(&format!("Failed to write {}", STATE_FILENAME));
 }
