@@ -109,6 +109,20 @@ fn repo_exec(path: &str, cmd: &str, args: &Vec<String>) {
 	println!();
 }
 
+/// Run a command and capture the output for use internally
+fn repo_capture_exec(path: &str, cmd: &str, args: &Vec<String>) -> String {
+	let output = Command::new(cmd)
+		.args(args)
+		.current_dir(path)
+		.output()
+		.expect(&format!(
+			"Error running external command {} {:?} in folder {}",
+			cmd, args, path
+		));
+
+	String::from_utf8(output.stdout).expect("Error converting stdout to string")
+}
+
 fn list() {
 	let repos: Vec<Repo> = load();
 	if repos.len() == 0 {
@@ -127,13 +141,18 @@ struct Repo {
 	remotes: Vec<Remote>,
 }
 
-impl Repo {
-	pub(crate) fn update_remotes(&self) {
-		println!("Grabbing url for {}", self.path);
-	}
+/// hacky call to external git command to get url of origin
+fn read_url(path: &str, remote_name: &str) -> String {
+	repo_capture_exec(
+		&path,
+		"git",
+		&["config".to_string(), format!("remote.{}.url", remote_name)].to_vec(),
+	)
+	.trim()
+	.to_owned()
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct Remote {
 	name: String,
 	url: String,
@@ -147,12 +166,17 @@ fn add_repos(repo_folders: &Vec<String>) {
 			println!("{} already added, ignoring.", repo_folder);
 			continue;
 		}
+		let remote_name = "origin";
+		let url = read_url(repo_folder, remote_name);
 		let repo = Repo {
 			path: repo_folder.to_owned(),
 			tags: Vec::new(),
-			remotes: Vec::new(),
+			remotes: [Remote {
+				name: remote_name.to_string(),
+				url,
+			}]
+			.to_vec(),
 		};
-		repo.update_remotes();
 		repos.push(repo);
 	}
 	save(&*repos); // &* to pass as *immutable* (dereference+reference) https://stackoverflow.com/questions/41366896/how-to-make-a-rust-mutable-reference-immutable/41367094#41367094
