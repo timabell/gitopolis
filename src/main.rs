@@ -63,8 +63,7 @@ fn main() {
 fn tag_folders(tag_name: &str, repo_folders: &Vec<String>, remove: &bool) {
 	let mut repos = load();
 	for repo_folder in repo_folders {
-		let repo =
-			find_repo(repo_folder, &mut repos).expect(&format!("Repo '{}' not found", repo_folder));
+		let mut repo = repos[repo_folder];
 		if *remove {
 			if let Some(ix) = repo.tags.iter().position(|t| t == tag_name) {
 				repo.tags.remove(ix);
@@ -76,22 +75,12 @@ fn tag_folders(tag_name: &str, repo_folders: &Vec<String>, remove: &bool) {
 	save(&repos);
 }
 
-fn find_repo<'a>(folder_name: &str, repos: &'a mut Vec<Repo>) -> Option<&'a mut Repo> {
-	if let Some(ix) = repo_index(folder_name, &repos) {
-		return Some(&mut repos[ix]);
-	}
-	None
-}
-
-fn repo_index(folder_name: &str, repos: &Vec<Repo>) -> Option<usize> {
-	repos.iter().position(|r| r.path == *folder_name)
-}
-
 fn exec(exec_args: &Vec<String>) {
 	let args_copy: &mut Vec<String> = &mut exec_args.to_owned();
 	let args = args_copy.split_off(1);
 	let cmd = &args_copy[0]; // only cmd remaining after split_off above
-	for repo in load() {
+	let repos = load();
+	for (_,repo) in repos {
 		repo_exec(&repo.path, &cmd, &args);
 	}
 }
@@ -124,21 +113,31 @@ fn repo_capture_exec(path: &str, cmd: &str, args: &Vec<String>) -> String {
 }
 
 fn list() {
-	let repos: Vec<Repo> = load();
+	let repos = load();
 	if repos.len() == 0 {
 		println!("No repos");
 		std::process::exit(2);
 	}
-	for repo in repos {
-		println!("{}", repo.path);
+	for (path,_) in repos {
+		println!("{}", path);
 	}
 }
+
+type Repos = BTreeMap<String, Repo>;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Repo {
 	path: String,
 	tags: Vec<String>,
-	remotes: BTreeMap<String, Remote>,
+	remotes: Remotes,
+}
+
+type Remotes = BTreeMap<String, Remote>;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct Remote {
+	name: String,
+	url: String,
 }
 
 /// hacky call to external git command to get url of origin
@@ -152,17 +151,11 @@ fn read_url(path: &str, remote_name: &str) -> String {
 	.to_owned()
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct Remote {
-	name: String,
-	url: String,
-}
-
 fn add_repos(repo_folders: &Vec<String>) {
-	let repos: &mut Vec<Repo> = &mut load();
+	let mut repos = load();
 	for repo_folder in repo_folders {
 		println!("Adding {} ...", repo_folder);
-		if let Some(_) = repo_index(repo_folder, &repos) {
+		if repos.contains_key(repo_folder) {
 			println!("{} already added, ignoring.", repo_folder);
 			continue;
 		}
@@ -172,7 +165,7 @@ fn add_repos(repo_folders: &Vec<String>) {
 
 		let url = read_url(repo_folder, remote_name);
 
-		let mut remotes: BTreeMap<String, Remote> = BTreeMap::new();
+		let mut remotes: Remotes = Remotes::new();
 		remotes.insert(
 			remote_name.to_owned(),
 			Remote {
@@ -186,44 +179,35 @@ fn add_repos(repo_folders: &Vec<String>) {
 			tags: Vec::new(),
 			remotes,
 		};
-		repos.push(repo);
+		repos.insert(repo.path.to_owned(), repo);
 	}
-	save(&*repos); // &* to pass as *immutable* (dereference+reference) https://stackoverflow.com/questions/41366896/how-to-make-a-rust-mutable-reference-immutable/41367094#41367094
+	save(&repos); // &* to pass as *immutable* (dereference+reference) https://stackoverflow.com/questions/41366896/how-to-make-a-rust-mutable-reference-immutable/41367094#41367094
 	println!("Done.");
 }
 
 fn remove_repos(repo_folders: &Vec<String>) {
 	let mut repos = load();
 	for repo_folder in repo_folders {
-		let ix =
-			repo_index(repo_folder, &repos).expect(&format!("Repo '{}' not found", repo_folder));
-		repos.remove(ix);
+		repos.remove(repo_folder);
 	}
 	save(&repos);
 }
 
-fn save(repos: &Vec<Repo>) {
-	let root: BTreeMap<_, _> = repos.iter().map(|r| (r.path.to_owned(), r)).collect();
-	// let mut named_container = BTreeMap::new();
-	// let mut named_container = HashMap::new();
-	// named_container.insert("repos", repos);
-
-	let state_toml = toml::to_string(&root).expect("Failed to generate toml for repo list");
-
+fn save(repos: &Repos) {
+	let state_toml = toml::to_string(&repos).expect("Failed to generate toml for repo list");
 	fs::write(STATE_FILENAME, state_toml).expect(&format!("Failed to write {}", STATE_FILENAME));
 }
 
-fn load() -> Vec<Repo> {
+fn load() -> &mut Repos {
 	if !std::path::Path::new(STATE_FILENAME).exists() {
-		return Vec::new();
+		return Repos::new();
 	}
 	let state_toml = fs::read_to_string(STATE_FILENAME).expect("Failed to read state file {}");
 
-	let mut named_container: BTreeMap<&str, Vec<Repo>> =
-		toml::from_str(&state_toml).expect(&format!("Failed to parse {}", STATE_FILENAME));
+	let mut repos: Repos = toml::from_str(&state_toml).expect(&format!("Failed to parse {}", STATE_FILENAME));
 
-	let repos = named_container
-		.remove("repos") // [re]move this rather than taking a ref so that ownership moves with it (borrow checker)
-		.expect(&format!("Corrupted state file {}", STATE_FILENAME));
-	return repos;
+	// let repos = named_container
+	// 	.remove("repos") // [re]move this rather than taking a ref so that ownership moves with it (borrow checker)
+	// 	.expect(&format!("Corrupted state file {}", STATE_FILENAME));
+	repos
 }
