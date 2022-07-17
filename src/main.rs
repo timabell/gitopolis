@@ -1,12 +1,15 @@
 mod exec;
+mod git;
 mod list;
 mod repos;
 mod storage;
+
 use clap::{Parser, Subcommand};
 use exec::exec;
 use list::list;
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use repos::*;
+use std::collections::BTreeMap;
 use std::io::Write;
 use storage::{load, save};
 
@@ -55,7 +58,7 @@ fn main() {
 
 	match &args.command {
 		Some(Commands::Add { repo_folders }) => {
-			repos.add(repo_folders);
+			add_repos(&mut repos, repo_folders);
 			save(repos)
 		}
 		Some(Commands::Remove { repo_folders }) => {
@@ -82,5 +85,31 @@ fn main() {
 		None => {
 			panic!("no command") // this doesn't happen because help shows instead
 		}
+	}
+}
+
+fn add_repos(repos: &mut Repos, repo_folders: &Vec<String>) {
+	for repo_folder in repo_folders {
+		if repos.exists(&repo_folder) {
+			info!("{} already added, ignoring.", repo_folder);
+			continue;
+		}
+		// todo: read all remotes, not just origin https://github.com/timabell/gitopolis/issues/7
+		let remote_name = "origin";
+		let url = git::read_url(&repo_folder, remote_name);
+		let mut remotes: BTreeMap<String, Remote> = BTreeMap::new();
+		remotes.insert(
+			remote_name.to_owned(),
+			Remote {
+				name: remote_name.to_owned(),
+				url,
+			},
+		);
+		let repo = Repo {
+			path: repo_folder.to_owned(),
+			tags: Vec::new(),
+			remotes,
+		};
+		repos.add(repo);
 	}
 }

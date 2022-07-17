@@ -1,5 +1,5 @@
-use log::info;
 use serde_derive::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Repos {
@@ -11,7 +11,7 @@ pub struct Repos {
 pub struct Repo {
 	pub path: String,
 	pub tags: Vec<String>,
-	// pub remotes: Vec<Remote>,
+	pub remotes: BTreeMap<String, Remote>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -32,24 +32,19 @@ impl Repos {
 		None
 	}
 
+	pub fn exists(&self, folder_name: &str) -> bool {
+		match self.repo_index(folder_name) {
+			Some(_) => true,
+			_ => false,
+		}
+	}
+
 	pub fn repo_index(&self, folder_name: &str) -> Option<usize> {
 		self.repos.iter().position(|r| r.path == *folder_name)
 	}
 
-	pub fn add(&mut self, repo_folders: &Vec<String>) {
-		for repo_folder in repo_folders {
-			if let Some(_) = self.repo_index(repo_folder) {
-				info!("{} already added, ignoring.", repo_folder);
-				continue;
-			}
-			let repo = Repo {
-				path: repo_folder.to_owned(),
-				tags: Vec::new(),
-				// remotes: Vec::new(),
-			};
-			self.repos.push(repo);
-			info!("Added {}", repo_folder);
-		}
+	pub fn add(&mut self, repo: Repo) {
+		self.repos.push(repo);
 	}
 
 	pub fn remove(&mut self, repo_folders: &Vec<String>) {
