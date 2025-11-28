@@ -2604,9 +2604,13 @@ url = "source_zzz"
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
 	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
-	// On Windows, canonicalize uses backslashes but git uses forward slashes, so normalize
+	// On Windows, canonicalize returns \\?\C:\... but git uses C:/..., so normalize
 	let temp_path_canonical = temp.path().canonicalize().unwrap();
-	let temp_path_str = temp_path_canonical.to_str().unwrap().replace('\\', "/");
+	let temp_path_str = temp_path_canonical
+		.to_str()
+		.unwrap()
+		.trim_start_matches(r"\\?\")
+		.replace('\\', "/");
 	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
 
 	let expected_remotes = r#"aaa	source_aaa (fetch)
@@ -2666,9 +2670,13 @@ url = "source_bbb"
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
 	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
-	// On Windows, canonicalize uses backslashes but git uses forward slashes, so normalize
+	// On Windows, canonicalize returns \\?\C:\... but git uses C:/..., so normalize
 	let temp_path_canonical = temp.path().canonicalize().unwrap();
-	let temp_path_str = temp_path_canonical.to_str().unwrap().replace('\\', "/");
+	let temp_path_str = temp_path_canonical
+		.to_str()
+		.unwrap()
+		.trim_start_matches(r"\\?\")
+		.replace('\\', "/");
 	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
 
 	// Should have aaa and bbb remotes, NOT origin
