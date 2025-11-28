@@ -1,6 +1,7 @@
 use std::fs;
 use std::process::Command;
 
+use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command as AssertCommand;
 use predicates::prelude::{predicate, PredicateBooleanExt};
 use tempfile::{tempdir, TempDir};
@@ -876,7 +877,7 @@ fn create_git_repo(temp: &TempDir, repo_name: &str, remote_url: &str) {
 }
 
 fn gitopolis_executable() -> AssertCommand {
-	AssertCommand::cargo_bin("gitopolis").expect("failed to find binary")
+	cargo_bin_cmd!("gitopolis")
 }
 
 fn write_gitopolis_state_toml(temp: &TempDir, initial_state_toml: &str) {
