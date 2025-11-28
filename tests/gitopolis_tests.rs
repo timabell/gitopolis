@@ -519,8 +519,8 @@ impl Git for FakeGit {
 		path: &str,
 		url: &str,
 		_remote_name: Option<&str>,
-	) -> Result<(), GitopolisError> {
+	) -> Result<bool, GitopolisError> {
 		(self.clone_callback)(path.to_owned(), url.to_owned());
-		Ok(())
+		Ok(true)
 	}
 }
