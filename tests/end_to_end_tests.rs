@@ -2602,6 +2602,10 @@ url = "source_zzz"
 		.expect("git remote --verbose failed");
 	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
 
+	// git clone converts relative local paths to absolute, so strip the temp path prefix
+	let temp_path_str = temp.path().to_str().unwrap();
+	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
+
 	let expected_remotes = r#"aaa	source_aaa (fetch)
 aaa	source_aaa (push)
 origin	source_origin (fetch)
@@ -2656,6 +2660,10 @@ url = "source_bbb"
 		.output()
 		.expect("git remote --verbose failed");
 	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// git clone converts relative local paths to absolute, so strip the temp path prefix
+	let temp_path_str = temp.path().to_str().unwrap();
+	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
 
 	// Should have aaa and bbb remotes, NOT origin
 	let expected_remotes = r#"aaa	source_aaa (fetch)
