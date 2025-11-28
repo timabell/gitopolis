@@ -322,9 +322,17 @@ fn parse(state_toml: &str) -> Result<Repos, GitopolisError> {
 			message: format!("Failed to parse state data as valid TOML. {error}"),
 		})?;
 
-	let repos = named_container
+	let mut repos = named_container
 		.remove("repos") // [re]move this rather than taking a ref so that ownership moves with it (borrow checker)
 		.expect("Failed to read 'repos' entry from state TOML");
+
+	// Populate remote names from map keys (name is not serialized to avoid duplication)
+	for repo in &mut repos {
+		for (name, remote) in &mut repo.remotes {
+			remote.name = name.clone();
+		}
+	}
+
 	Ok(Repos::new_with_repos(repos))
 }
 

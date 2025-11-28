@@ -10,7 +10,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	let storage = FakeStorage::new()
@@ -29,7 +28,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -53,7 +51,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -79,7 +76,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -111,7 +107,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -120,7 +115,6 @@ path = \"test_repo\"
 tags = [\"some_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 
@@ -144,7 +138,6 @@ path = \"test_repo\"
 tags = [\"some_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -153,7 +146,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 
@@ -177,7 +169,6 @@ path = \"repo1\"
 tags = [\"some_tag\", \"another_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 
 [[repos]]
@@ -185,7 +176,6 @@ path = \"repo2\"
 tags = [\"some_tag\", \"more_tags\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 	let storage = FakeStorage::new()
@@ -209,7 +199,6 @@ path = \"zebra_repo\"
 tags = [\"zulu\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/zebra\"
 
 [[repos]]
@@ -217,7 +206,6 @@ path = \"Beta_repo\"
 tags = [\"beta\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/beta\"
 
 [[repos]]
@@ -225,7 +213,6 @@ path = \"alpha_repo\"
 tags = [\"alpha\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/alpha\"\
 ";
 
@@ -253,7 +240,6 @@ path = \"zebra_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/zebra\"
 
 [[repos]]
@@ -261,7 +247,6 @@ path = \"middle_repo\"
 tags = [\"frontend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/middle\"
 
 [[repos]]
@@ -269,7 +254,6 @@ path = \"Beta_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/beta\"
 
 [[repos]]
@@ -277,7 +261,6 @@ path = \"alpha_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/alpha\"\
 ";
 
@@ -305,7 +288,6 @@ path = \"zebra_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/zebra\"
 
 [[repos]]
@@ -313,7 +295,6 @@ path = \"Beta_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/beta\"
 
 [[repos]]
@@ -321,7 +302,6 @@ path = \"alpha_repo\"
 tags = [\"backend\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/alpha\"\
 ";
 
@@ -352,7 +332,6 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"\
 ";
 
@@ -389,7 +368,6 @@ path = \"test_repo\"
 tags = [\"backend\", \"rust\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 
 [repos.remotes.upstream]

@@ -37,7 +37,6 @@ path = \"first_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 
 [[repos]]
@@ -45,7 +44,6 @@ path = \"second_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url2\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -81,7 +79,6 @@ path = \"some_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 
 [[repos]]
@@ -89,7 +86,6 @@ path = \"some_other_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url2\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -265,7 +261,6 @@ path = \"missing_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"example_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -496,7 +491,6 @@ path = \"missing_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"example_url\"
 
 [[repos]]
@@ -504,7 +498,6 @@ path = \"repo_a\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -535,7 +528,6 @@ path = \"some_git_folder\"
 tags = [\"some_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -563,7 +555,6 @@ path = \"some_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, actual_toml);
@@ -591,7 +582,6 @@ path = \"some_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, actual_toml);
@@ -696,7 +686,6 @@ path = \"some_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source_repo\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -759,7 +748,6 @@ path = \"some_git_folder\"
 tags = [\"some_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source_repo\"
 
 [[repos]]
@@ -767,7 +755,6 @@ path = \"some_other_git_folder\"
 tags = [\"some_other_tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"nonexistent_source_repo\"
 
 [[repos]]
@@ -775,7 +762,6 @@ path = \"yet_other_git_folder\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"nonexistent_source_repo\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1006,11 +992,9 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/origin_url\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -1083,7 +1067,6 @@ path = \"test_repo1\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source_repo1\"
 
 [[repos]]
@@ -1091,11 +1074,9 @@ path = \"test_repo2\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"nonexistent_source\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"also_nonexistent\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1133,11 +1114,9 @@ path = \"cloned_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source_origin\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"source_upstream\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1237,11 +1216,9 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/origin_url\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -1277,15 +1254,12 @@ path = \"test_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/origin_url\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 
 [repos.remotes.fork]
-name = \"fork\"
 url = \"git://example.org/fork_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1429,11 +1403,9 @@ path = \"tagged_repo\"
 tags = [\"sync-tag\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/tagged_origin\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"git://example.org/tagged_upstream\"
 
 [[repos]]
@@ -1441,7 +1413,6 @@ path = \"untagged_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/untagged_origin\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1515,7 +1486,6 @@ path = \"missing_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -1816,7 +1786,6 @@ path = \"new_location\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -1862,7 +1831,6 @@ path = \"apps/auth\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -1893,7 +1861,6 @@ path = \"new_tagged_repo\"
 tags = [\"backend\", \"rust\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -2112,7 +2079,6 @@ path = \"alpha_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/alpha\"
 
 [[repos]]
@@ -2120,7 +2086,6 @@ path = \"Beta_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/beta\"
 
 [[repos]]
@@ -2128,7 +2093,6 @@ path = \"zulu_repo\"
 tags = []
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/zulu\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -2151,7 +2115,6 @@ path = \"test_repo\"
 tags = [\"alpha\", \"Beta\", \"zulu\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -2173,7 +2136,6 @@ path = \"some_git_folder\"
 tags = [\"tag1\", \"tag2\", \"tag3\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
@@ -2201,7 +2163,6 @@ path = \"some_git_folder\"
 tags = [\"keep_this\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
 	assert_eq!(expected_toml, actual_toml);
@@ -2292,7 +2253,6 @@ path = \"repo1\"
 tags = [\"foo\", \"bar\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source1\"
 
 [[repos]]
@@ -2300,7 +2260,6 @@ path = \"repo2\"
 tags = [\"baz\", \"boz\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source2\"
 
 [[repos]]
@@ -2308,7 +2267,6 @@ path = \"repo3\"
 tags = [\"foo\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"source3\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -2477,11 +2435,9 @@ path = \"repo1\"
 tags = [\"foo\", \"bar\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/repo1_origin\"
 
 [repos.remotes.upstream]
-name = \"upstream\"
 url = \"git://example.org/repo1_upstream\"
 
 [[repos]]
@@ -2489,11 +2445,9 @@ path = \"repo2\"
 tags = [\"baz\", \"boz\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/repo2_origin\"
 
 [repos.remotes.fork]
-name = \"fork\"
 url = \"git://example.org/repo2_fork\"
 
 [[repos]]
@@ -2501,7 +2455,6 @@ path = \"repo3\"
 tags = [\"foo\"]
 
 [repos.remotes.origin]
-name = \"origin\"
 url = \"git://example.org/repo3_origin\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -2571,15 +2524,12 @@ path = "cloned_repo"
 tags = []
 
 [repos.remotes.aaa]
-name = "aaa"
 url = "source_aaa"
 
 [repos.remotes.origin]
-name = "origin"
 url = "source_origin"
 
 [repos.remotes.zzz]
-name = "zzz"
 url = "source_zzz"
 "#;
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -2641,11 +2591,9 @@ path = "cloned_repo"
 tags = []
 
 [repos.remotes.aaa]
-name = "aaa"
 url = "source_aaa"
 
 [repos.remotes.bbb]
-name = "bbb"
 url = "source_bbb"
 "#;
 	write_gitopolis_state_toml(&temp, initial_state_toml);
@@ -2718,11 +2666,9 @@ path = "cloned_repo"
 tags = []
 
 [repos.remotes.origin]
-name = "origin"
 url = "source_origin"
 
 [repos.remotes.upstream]
-name = "upstream"
 url = "source_upstream"
 "#;
 	write_gitopolis_state_toml(&temp, initial_state_toml);

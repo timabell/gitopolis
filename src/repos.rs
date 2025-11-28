@@ -37,6 +37,7 @@ impl Repo {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Remote {
+	#[serde(skip)]
 	pub name: String,
 	pub url: String,
 }
