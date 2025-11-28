@@ -2603,7 +2603,9 @@ url = "source_zzz"
 	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
-	let temp_path_str = temp.path().to_str().unwrap();
+	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
+	let temp_path_canonical = temp.path().canonicalize().unwrap();
+	let temp_path_str = temp_path_canonical.to_str().unwrap();
 	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
 
 	let expected_remotes = r#"aaa	source_aaa (fetch)
@@ -2662,7 +2664,9 @@ url = "source_bbb"
 	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
-	let temp_path_str = temp.path().to_str().unwrap();
+	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
+	let temp_path_canonical = temp.path().canonicalize().unwrap();
+	let temp_path_str = temp_path_canonical.to_str().unwrap();
 	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
 
 	// Should have aaa and bbb remotes, NOT origin
