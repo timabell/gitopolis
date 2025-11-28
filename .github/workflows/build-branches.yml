@@ -1,8 +1,9 @@
-name: build-main
+name: build-branches
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - "**"
 
 jobs:
   ci:
