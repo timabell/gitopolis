@@ -514,7 +514,12 @@ impl Git for FakeGit {
 		// No-op for fake implementation
 	}
 
-	fn clone(&self, path: &str, url: &str) -> Result<(), GitopolisError> {
+	fn clone(
+		&self,
+		path: &str,
+		url: &str,
+		_remote_name: Option<&str>,
+	) -> Result<(), GitopolisError> {
 		(self.clone_callback)(path.to_owned(), url.to_owned());
 		Ok(())
 	}

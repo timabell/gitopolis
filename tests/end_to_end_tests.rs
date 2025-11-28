@@ -2552,3 +2552,116 @@ url = \"git://example.org/repo3_origin\"
 	let remotes3 = String::from_utf8(output3.stdout).expect("utf8 conversion failed");
 	assert!(remotes3.is_empty());
 }
+
+#[test]
+fn clone_multiple_remotes_prefers_origin() {
+	// Test that when cloning a repo with remotes aaa, origin, zzz:
+	// - It clones using the origin remote
+	// - It adds aaa and zzz as additional remotes
+	let temp = temp_folder();
+
+	// Create source repos for each remote
+	create_local_repo(&temp, "source_aaa");
+	create_local_repo(&temp, "source_origin");
+	create_local_repo(&temp, "source_zzz");
+
+	// Create state with multiple remotes including origin
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.aaa]
+name = "aaa"
+url = "source_aaa"
+
+[repos.remotes.origin]
+name = "origin"
+url = "source_origin"
+
+[repos.remotes.zzz]
+name = "zzz"
+url = "source_zzz"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Cloning source_origin"));
+
+	// Verify all three remotes exist in cloned repo with correct names
+	let cloned_path = temp.path().join("cloned_repo");
+
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	let expected_remotes = r#"aaa	source_aaa (fetch)
+aaa	source_aaa (push)
+origin	source_origin (fetch)
+origin	source_origin (push)
+zzz	source_zzz (fetch)
+zzz	source_zzz (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}
+
+#[test]
+fn clone_multiple_remotes_uses_first_when_no_origin() {
+	// Test that when cloning a repo with remotes aaa, bbb (no origin):
+	// - It clones using the first remote (aaa) alphabetically
+	// - The remote is named "aaa" (not "origin")
+	// - It adds bbb as an additional remote
+	let temp = temp_folder();
+
+	// Create source repos for each remote
+	create_local_repo(&temp, "source_aaa");
+	create_local_repo(&temp, "source_bbb");
+
+	// Create state with multiple remotes, none named origin
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.aaa]
+name = "aaa"
+url = "source_aaa"
+
+[repos.remotes.bbb]
+name = "bbb"
+url = "source_bbb"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Cloning source_aaa"));
+
+	// Verify remotes in cloned repo
+	let cloned_path = temp.path().join("cloned_repo");
+
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// Should have aaa and bbb remotes, NOT origin
+	let expected_remotes = r#"aaa	source_aaa (fetch)
+aaa	source_aaa (push)
+bbb	source_bbb (fetch)
+bbb	source_bbb (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}
