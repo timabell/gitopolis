@@ -2552,3 +2552,202 @@ url = \"git://example.org/repo3_origin\"
 	let remotes3 = String::from_utf8(output3.stdout).expect("utf8 conversion failed");
 	assert!(remotes3.is_empty());
 }
+
+#[test]
+fn clone_multiple_remotes_prefers_origin() {
+	// Test that when cloning a repo with remotes aaa, origin, zzz:
+	// - It clones using the origin remote
+	// - It adds aaa and zzz as additional remotes
+	let temp = temp_folder();
+
+	// Create source repos for each remote
+	create_local_repo(&temp, "source_aaa");
+	create_local_repo(&temp, "source_origin");
+	create_local_repo(&temp, "source_zzz");
+
+	// Create state with multiple remotes including origin
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.aaa]
+name = "aaa"
+url = "source_aaa"
+
+[repos.remotes.origin]
+name = "origin"
+url = "source_origin"
+
+[repos.remotes.zzz]
+name = "zzz"
+url = "source_zzz"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Cloning source_origin"));
+
+	// Verify all three remotes exist in cloned repo with correct names
+	let cloned_path = temp.path().join("cloned_repo");
+
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// git clone converts relative local paths to absolute, so strip the temp path prefix
+	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
+	// On Windows, canonicalize returns \\?\C:\... but git uses C:/..., so normalize
+	let temp_path_canonical = temp.path().canonicalize().unwrap();
+	let temp_path_str = temp_path_canonical
+		.to_str()
+		.unwrap()
+		.trim_start_matches(r"\\?\")
+		.replace('\\', "/");
+	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
+
+	let expected_remotes = r#"aaa	source_aaa (fetch)
+aaa	source_aaa (push)
+origin	source_origin (fetch)
+origin	source_origin (push)
+zzz	source_zzz (fetch)
+zzz	source_zzz (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}
+
+#[test]
+fn clone_multiple_remotes_uses_first_when_no_origin() {
+	// Test that when cloning a repo with remotes aaa, bbb (no origin):
+	// - It clones using the first remote (aaa) alphabetically
+	// - The remote is named "aaa" (not "origin")
+	// - It adds bbb as an additional remote
+	let temp = temp_folder();
+
+	// Create source repos for each remote
+	create_local_repo(&temp, "source_aaa");
+	create_local_repo(&temp, "source_bbb");
+
+	// Create state with multiple remotes, none named origin
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.aaa]
+name = "aaa"
+url = "source_aaa"
+
+[repos.remotes.bbb]
+name = "bbb"
+url = "source_bbb"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Cloning source_aaa"));
+
+	// Verify remotes in cloned repo
+	let cloned_path = temp.path().join("cloned_repo");
+
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// git clone converts relative local paths to absolute, so strip the temp path prefix
+	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
+	// On Windows, canonicalize returns \\?\C:\... but git uses C:/..., so normalize
+	let temp_path_canonical = temp.path().canonicalize().unwrap();
+	let temp_path_str = temp_path_canonical
+		.to_str()
+		.unwrap()
+		.trim_start_matches(r"\\?\")
+		.replace('\\', "/");
+	let remotes = remotes.replace(&format!("{}/", temp_path_str), "");
+
+	// Should have aaa and bbb remotes, NOT origin
+	let expected_remotes = r#"aaa	source_aaa (fetch)
+aaa	source_aaa (push)
+bbb	source_bbb (fetch)
+bbb	source_bbb (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}
+
+#[test]
+fn clone_skips_adding_remotes_when_repo_exists() {
+	// Test that when a repo already exists, clone skips it entirely
+	// and doesn't try to add remotes (which would fail with "remote already exists")
+	let temp = temp_folder();
+
+	// Create source repos
+	create_local_repo(&temp, "source_origin");
+	create_local_repo(&temp, "source_upstream");
+
+	// Pre-create the target repo with origin remote already configured
+	let cloned_path = temp.path().join("cloned_repo");
+	fs::create_dir_all(&cloned_path).expect("create repo dir failed");
+	Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["init", "--initial-branch", "main"])
+		.output()
+		.expect("git init failed");
+	Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "add", "origin", "existing_origin_url"])
+		.output()
+		.expect("git remote add failed");
+
+	// Create state with multiple remotes
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.origin]
+name = "origin"
+url = "source_origin"
+
+[repos.remotes.upstream]
+name = "upstream"
+url = "source_upstream"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone - should skip the existing repo and NOT try to add remotes
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Already exists, skipped"))
+		// Should NOT have any warnings about failed remote adds
+		.stderr(predicate::str::contains("Warning").not());
+
+	// Verify the original remote is unchanged (not overwritten)
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// Should only have the original origin remote, not the upstream from config
+	let expected_remotes = r#"origin	existing_origin_url (fetch)
+origin	existing_origin_url (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}

@@ -101,14 +101,21 @@ impl Gitopolis {
 
 			if let Some(clone_remote) = repo.remotes.get(clone_remote_name) {
 				// Clone the repo
-				match self.git.clone(repo.path.as_str(), &clone_remote.url) {
-					Ok(()) => {
-						// Add all other remotes
+				match self.git.clone(
+					repo.path.as_str(),
+					&clone_remote.url,
+					Some(clone_remote_name),
+				) {
+					Ok(true) => {
+						// Clone succeeded, add all other remotes
 						for (name, remote) in &repo.remotes {
 							if name != clone_remote_name {
 								self.git.add_remote(&repo.path, name, &remote.url);
 							}
 						}
+					}
+					Ok(false) => {
+						// Repo already exists, skip adding remotes
 					}
 					Err(_) => {
 						eprintln!("Warning: Could not clone {}", repo.path);
@@ -238,7 +245,7 @@ impl Gitopolis {
 		};
 
 		// Clone the repository
-		self.git.clone(&folder_name, url)?;
+		self.git.clone(&folder_name, url, None)?;
 
 		// Add the repository to gitopolis
 		self.add(folder_name.clone())?;
