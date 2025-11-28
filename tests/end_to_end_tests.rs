@@ -2673,3 +2673,67 @@ bbb	source_bbb (push)
 "#;
 	assert_eq!(expected_remotes, remotes);
 }
+
+#[test]
+fn clone_skips_adding_remotes_when_repo_exists() {
+	// Test that when a repo already exists, clone skips it entirely
+	// and doesn't try to add remotes (which would fail with "remote already exists")
+	let temp = temp_folder();
+
+	// Create source repos
+	create_local_repo(&temp, "source_origin");
+	create_local_repo(&temp, "source_upstream");
+
+	// Pre-create the target repo with origin remote already configured
+	let cloned_path = temp.path().join("cloned_repo");
+	fs::create_dir_all(&cloned_path).expect("create repo dir failed");
+	Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["init", "--initial-branch", "main"])
+		.output()
+		.expect("git init failed");
+	Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "add", "origin", "existing_origin_url"])
+		.output()
+		.expect("git remote add failed");
+
+	// Create state with multiple remotes
+	let initial_state_toml = r#"[[repos]]
+path = "cloned_repo"
+tags = []
+
+[repos.remotes.origin]
+name = "origin"
+url = "source_origin"
+
+[repos.remotes.upstream]
+name = "upstream"
+url = "source_upstream"
+"#;
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	// Run clone - should skip the existing repo and NOT try to add remotes
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("Already exists, skipped"))
+		// Should NOT have any warnings about failed remote adds
+		.stderr(predicate::str::contains("Warning").not());
+
+	// Verify the original remote is unchanged (not overwritten)
+	let remotes_output = Command::new("git")
+		.current_dir(&cloned_path)
+		.args(vec!["remote", "--verbose"])
+		.output()
+		.expect("git remote --verbose failed");
+	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+
+	// Should only have the original origin remote, not the upstream from config
+	let expected_remotes = r#"origin	existing_origin_url (fetch)
+origin	existing_origin_url (push)
+"#;
+	assert_eq!(expected_remotes, remotes);
+}

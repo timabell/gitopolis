@@ -9,8 +9,13 @@ pub trait Git {
 	fn read_url(&self, path: String, remote_name: String) -> Result<String, GitopolisError>;
 	fn read_all_remotes(&self, path: String) -> Result<BTreeMap<String, String>, GitopolisError>;
 	fn add_remote(&self, path: &str, remote_name: &str, url: &str);
-	fn clone(&self, path: &str, url: &str, remote_name: Option<&str>)
-		-> Result<(), GitopolisError>;
+	/// Clone a repo. Returns Ok(true) if cloned, Ok(false) if already exists (skipped).
+	fn clone(
+		&self,
+		path: &str,
+		url: &str,
+		remote_name: Option<&str>,
+	) -> Result<bool, GitopolisError>;
 }
 
 pub struct GitImpl {}
@@ -75,10 +80,10 @@ impl Git for GitImpl {
 		path: &str,
 		url: &str,
 		remote_name: Option<&str>,
-	) -> Result<(), GitopolisError> {
+	) -> Result<bool, GitopolisError> {
 		if Path::new(path).exists() {
 			println!("🏢 {path}> Already exists, skipped.");
-			return Ok(());
+			return Ok(false);
 		}
 		println!("🏢 {path}> Cloning {url} ...");
 		let mut args = vec!["clone"];
@@ -103,6 +108,6 @@ impl Git for GitImpl {
 			});
 		}
 
-		Ok(())
+		Ok(true)
 	}
 }

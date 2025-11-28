@@ -106,13 +106,16 @@ impl Gitopolis {
 					&clone_remote.url,
 					Some(clone_remote_name),
 				) {
-					Ok(()) => {
-						// Add all other remotes
+					Ok(true) => {
+						// Clone succeeded, add all other remotes
 						for (name, remote) in &repo.remotes {
 							if name != clone_remote_name {
 								self.git.add_remote(&repo.path, name, &remote.url);
 							}
 						}
+					}
+					Ok(false) => {
+						// Repo already exists, skip adding remotes
 					}
 					Err(_) => {
 						eprintln!("Warning: Could not clone {}", repo.path);
