@@ -32,17 +32,17 @@ jobs:
         args: --latest --strip header
 
     - name: Download Linux Build
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: gitopolis-linux-x86_64
 
     - name: Download Windows Build
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: gitopolis-windows-x86_64
 
     - name: Download macOS Build
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: gitopolis-macos-x86_64
 
