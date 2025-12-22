@@ -46,6 +46,10 @@ or
 yay -S gitopolis
 ```
 
+### Packaged version info
+
+<https://repology.org/project/gitopolis/versions>
+
 ## Built in help
 
 gitopolis has a fully documented command system, so use `-h` to get help for each command:
