@@ -16,7 +16,7 @@ categories = ["command-line-utilities", "development-tools"]
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 env_logger = "0.11.8"
-git2 = "0.20.3"
+git2 = "0.20.4"
 log = "0.4.29"
 serde = "1.0.228"
 serde_derive = "1.0.228"
