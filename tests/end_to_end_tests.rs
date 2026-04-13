@@ -521,6 +521,92 @@ url = \"git://example.org/test_url\"
 }
 
 #[test]
+fn exec_skip_blank_oneline() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/test_url");
+	add_a_repo(&temp, "repo_b", "git://example.org/test_url2");
+
+	// Create a file only in repo_a; ls shows it there, blank in repo_b
+	let repo_a_path = temp.path().join("repo_a");
+	fs::write(repo_a_path.join("somefile.txt"), "").unwrap();
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["exec", "--oneline", "--skip-blank", "--", "ls"])
+		.assert()
+		.success()
+		.stdout("repo_a\tsomefile.txt\n");
+}
+
+#[test]
+fn exec_skip_blank_oneline_shows_failures() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/test_url");
+	add_a_repo(&temp, "repo_b", "git://example.org/test_url2");
+
+	// "false" produces no output but fails — should still show with --skip-blank
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["exec", "--oneline", "--skip-blank", "--", "false"])
+		.assert()
+		.failure()
+		.code(1)
+		.stdout("repo_a\t\nrepo_b\t\n")
+		.stderr("2 commands exited with non-zero status code\n");
+}
+
+#[test]
+fn exec_skip_blank() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/test_url");
+	add_a_repo(&temp, "repo_b", "git://example.org/test_url2");
+
+	// Create a file only in repo_a; ls shows it there, blank in repo_b
+	let repo_a_path = temp.path().join("repo_a");
+	fs::write(repo_a_path.join("somefile.txt"), "").unwrap();
+
+	// repo_a has ls output, repo_b succeeds silently — repo_b should be skipped
+	let expected_stdout = "\n\
+		🏢 repo_a> ls\n\
+		somefile.txt\n\
+		\n";
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["exec", "--skip-blank", "--", "ls"])
+		.assert()
+		.success()
+		.stdout(expected_stdout);
+}
+
+#[test]
+fn exec_skip_blank_shows_failures() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/test_url");
+	add_a_repo(&temp, "repo_b", "git://example.org/test_url2");
+
+	// "false" fails with no output — should still show header with --skip-blank
+	let expected_stdout = "\n\
+		🏢 repo_a> false\n\
+		\n\
+		\n\
+		🏢 repo_b> false\n\
+		\n";
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["exec", "--skip-blank", "--", "false"])
+		.assert()
+		.failure()
+		.code(1)
+		.stdout(expected_stdout)
+		.stderr(
+			"Command exited with code 1\n\
+			 Command exited with code 1\n\
+			 2 commands exited with non-zero status code\n",
+		);
+}
+
+#[test]
 fn tag() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");

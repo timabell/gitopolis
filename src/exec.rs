@@ -2,9 +2,11 @@ use crate::repos::Repo;
 use std::env;
 use std::io::{BufRead, BufReader, Error, Read};
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 
-pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
+pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool, skip_blank: bool) {
 	let mut error_count = 0;
 	let mut skipped_count = 0;
 	for repo in &repos {
@@ -21,6 +23,9 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
 		if oneline {
 			let (output, success) =
 				repo_exec_oneline(&repo.path, &exec_args).expect("Failed to execute command.");
+			if skip_blank && success && output.is_none() {
+				continue;
+			}
 			match output {
 				Some(output_text) => println!("{}\t{}", &repo.path, output_text),
 				None => println!("{}\t", &repo.path),
@@ -29,8 +34,11 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
 				error_count += 1;
 			}
 		} else {
-			let exit_status =
-				repo_exec(&repo.path, &exec_args).expect("Failed to execute command.");
+			let (exit_status, had_output) =
+				repo_exec(&repo.path, &exec_args, skip_blank).expect("Failed to execute command.");
+			if skip_blank && exit_status.success() && !had_output {
+				continue;
+			}
 			if !exit_status.success() {
 				error_count += 1
 			}
@@ -148,9 +156,17 @@ fn quote_arg(arg: &str) -> String {
 	}
 }
 
-fn repo_exec(path: &str, exec_args: &[String]) -> Result<ExitStatus, Error> {
-	println!();
-	println!("🏢 {}> {}", path, format_args_for_display(exec_args));
+fn repo_exec(
+	path: &str,
+	exec_args: &[String],
+	skip_blank: bool,
+) -> Result<(ExitStatus, bool), Error> {
+	let header = format!("\n🏢 {}> {}", path, format_args_for_display(exec_args));
+
+	if !skip_blank {
+		print!("{}", header);
+		println!();
+	}
 
 	// If single argument, pass directly to shell for interpretation (supports pipes, etc.)
 	// If multiple arguments, pass via positional parameters to avoid quoting issues
@@ -223,16 +239,36 @@ fn repo_exec(path: &str, exec_args: &[String]) -> Result<ExitStatus, Error> {
 		.take()
 		.expect("Failed to capture stderr");
 
+	// When skip_blank, defer header until first output byte arrives.
+	// AtomicBool ensures only the first thread (stdout or stderr) prints the header.
+	let header_printed = Arc::new(AtomicBool::new(!skip_blank));
+	let header_for_stdout = header.clone();
+	let header_printed_stdout = Arc::clone(&header_printed);
+	let header_printed_stderr = Arc::clone(&header_printed);
+
 	let stdout_thread = thread::spawn(move || {
 		let reader = BufReader::new(stdout);
 		for line in reader.lines().map_while(Result::ok) {
+			if header_printed_stdout
+				.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+				.is_ok()
+			{
+				println!("{}", header_for_stdout);
+			}
 			println!("{}", line);
 		}
 	});
 
+	let header_for_stderr = header;
 	let stderr_thread = thread::spawn(move || {
 		let reader = BufReader::new(stderr);
 		for line in reader.lines().map_while(Result::ok) {
+			if header_printed_stderr
+				.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+				.is_ok()
+			{
+				println!("{}", header_for_stderr);
+			}
 			eprintln!("{}", line);
 		}
 	});
@@ -243,13 +279,19 @@ fn repo_exec(path: &str, exec_args: &[String]) -> Result<ExitStatus, Error> {
 	let _ = stdout_thread.join();
 	let _ = stderr_thread.join();
 
+	let had_output = header_printed.load(Ordering::SeqCst);
+
+	// For failed commands, print header retroactively if nothing was output
 	if !exit_code.success() {
+		if !had_output {
+			println!("\n🏢 {}> {}", path, format_args_for_display(exec_args));
+		}
 		eprintln!(
 			"Command exited with code {}",
 			exit_code.code().expect("exit code missing")
 		);
 	}
-	Ok(exit_code)
+	Ok((exit_code, had_output || !exit_code.success()))
 }
 
 fn repo_exec_oneline(path: &str, exec_args: &[String]) -> Result<(Option<String>, bool), Error> {

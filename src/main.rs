@@ -47,6 +47,9 @@ enum Commands {
 		tag: Vec<String>,
 		#[arg(long)]
 		oneline: bool,
+		/// Don't output repo name when no stdout/stderr output produced
+		#[arg(long)]
+		skip_blank: bool,
 		exec_args: Vec<String>,
 	},
 	/// Add/remove repo tags. Use tags to organise repos and allow running commands against subsets of the repo list. Supports comma-separated tag lists (e.g., "tag1,tag2,tag3").
@@ -150,6 +153,7 @@ fn main() {
 		Some(Commands::Exec {
 			tag: tag_args,
 			oneline,
+			skip_blank,
 			exec_args,
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
@@ -159,6 +163,7 @@ fn main() {
 					.list(&filter)
 					.expect("Failed to list repositories for exec"),
 				*oneline,
+				*skip_blank,
 			);
 		}
 		Some(Commands::Tag {
