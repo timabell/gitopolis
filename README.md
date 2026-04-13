@@ -105,13 +105,18 @@ gitopolis exec -- git pull
 gitopolis exec -- git status
 ```
 
-**Note:** Commands executed with `exec` run in a non-interactive (non-TTY) environment to prevent hanging on prompts or pagers. This means:
-- Git commands won't pause for pagers (like `less` for `git log`)
-- Git will default to no-color output, but you can re-enable it with `--color` (e.g., `gitopolis exec -- git log --color`)
+#### Interactive commands, pagers & colour
+
+Commands executed with `gitopolis exec` and `gitopolis clone` run in a "non-interactive" (non-TTY) environment to prevent hanging on prompts or pagers.
+
+This means:
+
 - Commands won't prompt for interactive input
-- SSH/GPG keys must already be loaded and unlocked in ssh-agent or similar
-- Remote SSH host keys must already be accepted (in `~/.ssh/known_hosts`)
-- The easiest way to ensure keys and hosts are all setup and ready if you run into this problem is to run a single git fetch/clone outside gitopolis first. If this proves to be a regular hassle for new users then we could look at doing something about it so add your experience to [issue #236](https://github.com/timabell/gitopolis/issues/236).
+  - SSH/GPG keys must already be loaded and unlocked in ssh-agent or similar
+  - Remote SSH host keys must already be accepted (in `~/.ssh/known_hosts`)
+  - The easiest way to ensure keys and hosts are all setup and ready if you run into this problem is to run a single git fetch/clone outside gitopolis first. If this proves to be a regular hassle for new users then we could look at doing something about it so add your experience to [issue #236](https://github.com/timabell/gitopolis/issues/236).
+- Git commands won't pause for pagers (like `less` for `git log`) - this is intentional, but you can pipe the output of gitopolis as a whole into less - e.g.  `gitopolis exec -- git log -n 1 | less`
+- Git will default to no-color output, but you can [force git's coloured output](https://stackoverflow.com/questions/16073708/force-git-status-to-output-color-on-the-terminal-inside-a-script/18304605#18304605) with `git -c color.ui=always`.
 
 #### Getting output as single lines
 
