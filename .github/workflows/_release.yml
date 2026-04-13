@@ -39,14 +39,19 @@ jobs:
       with:
         name: gitopolis-windows-x86_64
 
-    - name: Download macOS Build
+    - name: Download macOS x86_64 Build
       uses: actions/download-artifact@v8
       with:
         name: gitopolis-macos-x86_64
 
+    - name: Download macOS aarch64 Build
+      uses: actions/download-artifact@v8
+      with:
+        name: gitopolis-macos-aarch64
+
     - name: Generate SHA256 Checksums
       run: |
-        sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz > SHA256SUMS.txt
+        sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz gitopolis-macos-aarch64.tar.gz > SHA256SUMS.txt
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -58,6 +63,7 @@ jobs:
           gitopolis-linux-x86_64.tar.gz
           gitopolis-windows-x86_64.zip
           gitopolis-macos-x86_64.tar.gz
+          gitopolis-macos-aarch64.tar.gz
           SHA256SUMS.txt
 
     - name: Update Version for crates.io

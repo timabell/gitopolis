@@ -68,6 +68,10 @@ jobs:
           target: x86_64-apple-darwin
           artifact_name: gitopolis-macos-x86_64
           binary_name: gitopolis
+        - os: macos-latest
+          target: aarch64-apple-darwin
+          artifact_name: gitopolis-macos-aarch64
+          binary_name: gitopolis
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
@@ -125,6 +129,9 @@ jobs:
         VERSION="${VERSION#v}"
         sed -i '' "s/0\\.0\\.0-git/$VERSION/" Cargo.toml
         sed -i '' "s/0\\.0\\.0-git/$VERSION/" Cargo.lock
+    - name: Set macOS deployment target
+      if: runner.os == 'macOS'
+      run: echo "MACOSX_DEPLOYMENT_TARGET=10.7" >> $GITHUB_ENV
     - name: Build
       run: cargo build --target ${{ matrix.target }} --release
     - name: Test
