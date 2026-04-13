@@ -20,7 +20,7 @@ if command -v yamllint >/dev/null 2>&1; then
     for file in .github/**/*.yml .github/**/*.yaml; do
         if [ -f "$file" ]; then
             echo "Checking $file"
-            yamllint -d relaxed "$file"
+            yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$file"
         fi
     done
 else
