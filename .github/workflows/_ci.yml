@@ -30,7 +30,9 @@ jobs:
       with:
         toolchain: ${{ needs.get-rust-version.outputs.rust-version }}
     - name: Install cargo-deny
-      run: cargo install cargo-deny
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-deny
     - name: Check Licenses
       run: cargo deny check licenses
 
@@ -43,7 +45,9 @@ jobs:
       with:
         toolchain: ${{ needs.get-rust-version.outputs.rust-version }}
     - name: Install cargo-machete
-      run: cargo install cargo-machete
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-machete
     - name: Check for unused dependencies
       run: cargo machete
 
