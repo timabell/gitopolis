@@ -1,39 +1,44 @@
 [changelog]
-header = """
-# Changelog\n
-"""
+header = ""
 body = """
-{% if version %}\
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
-{% else %}\
-    ## [unreleased]
+{% if version %}## {{ version }}
+{% else %}## [unreleased]
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
-    ### {{ group | upper_first }}
-    {% for commit in commits %}
-        - {{ commit.message | upper_first }}\
-    {% endfor %}
-{% endfor %}\n
+### {{ group | striptags | trim }}
+
+{% for commit in commits %}\
+- {{ commit.message | upper_first }} ({{ commit.id | truncate(length=7, end="") }})
+{% endfor %}\
+{% endfor %}
 """
+footer = ""
 trim = true
 
 [git]
 conventional_commits = true
-filter_unconventional = true # ignore commits with "prefix:"
+# true = filter out non-conventional commits (those without "type: message" format)
+filter_unconventional = true
+# false = keep each commit as one entry; true = split multi-paragraph commits
 split_commits = false
+
+# Match commit message prefixes to assign groups (change types).
+# First matching parser wins.
+# HTML comments control sort order, removed by striptags in template.
 commit_parsers = [
-    { message = "^security", group = "<!--0-->Security"},
-    { message = "^feat", group = "<!--1-->Features"},
-    { message = "^fix", group = "<!--2-->Bug Fixes"},
-    { message = "^perf", group = "<!--3-->Performance"},
-    { message = "^chore", group = "<!--4-->Chores"},
-    { message = "^refactor", group = "<!--5-->Refactor"},
-    { message = "^doc", group = "<!--6-->Documentation"},
+    { message = "^feat", group = "<!-- 1 -->✨ Features" },
+    { message = "^fix", group = "<!-- 2 -->🐛 Bug Fixes" },
+    { message = "^refactor", group = "<!-- 3 -->🔧 Refactor" },
+    { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^doc", group = "<!-- 5 -->📚 Documentation" },
+    { message = "^security", group = "<!-- 6 -->🔒 Security" },
+    { message = "^chore", group = "<!-- 6 -->🧹 Chore" },
 ]
-protect_breaking_commits = false
-filter_commits = true # ignore prefixes not listed above
+
+# true = exclude commits that don't match any parser (only release-worthy commits)
+# false = include commits that don't match any parser (as ungrouped)
+filter_commits = true
+
 tag_pattern = "v[0-9]*"
-skip_tags = "v[0-9]*-.*" # ignore pre-release semver tags
-ignore_tags = ""
-topo_order = false
-sort_commits = "oldest"
+# Skip pre-release tags like v1.0.0-beta.1
+skip_tags = "v[0-9]*-.*"

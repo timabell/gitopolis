@@ -1,0 +1,104 @@
+name: Build Main
+
+on:
+  push:
+    branches: [main]
+
+# Prevent concurrent releases racing to create the same version tag
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check_changes.outputs.should_release }}
+      release_tag: ${{ steps.version_outputs.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/cliff.toml
+          args: --unreleased --strip header
+
+      - name: Check for release-worthy changes
+        id: check_changes
+        # git-cliff outputs ### section headers only when there are matching commits
+        # (## [unreleased] header is always output, so we check for ### specifically)
+        run: |
+          if echo "${{ steps.changelog.outputs.content }}" | grep -q '###'; then
+            echo "Release-worthy changes found"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "No release-worthy changes found"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect bump type
+        if: steps.check_changes.outputs.should_release == 'true'
+        id: bump
+        run: |
+          BUMP_TYPE=$(.github/workflows/detect-bump.sh)
+          echo "type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Bump type: $BUMP_TYPE"
+
+      - name: Calculate next version
+        if: steps.check_changes.outputs.should_release == 'true'
+        id: version
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/cliff.toml
+          args: --bump ${{ steps.bump.outputs.type }} --bumped-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set version outputs
+        if: steps.check_changes.outputs.should_release == 'true'
+        id: version_outputs
+        run: |
+          VERSION="${{ steps.version.outputs.content }}"
+          VERSION="${VERSION#v}"  # Remove v prefix if present
+          VERSION="${VERSION%%$'\n'*}"  # Remove any trailing newlines
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION, Tag: v$VERSION"
+
+  ci:
+    needs: check-release
+    uses: ./.github/workflows/_ci.yml
+    with:
+      release_tag: ${{ needs.check-release.outputs.release_tag }}
+
+  create-tag:
+    needs: [check-release, ci]
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ needs.check-release.outputs.release_tag }}
+          git push origin ${{ needs.check-release.outputs.release_tag }}
+
+  release:
+    needs: [check-release, ci, create-tag]
+    if: needs.check-release.outputs.should_release == 'true'
+    uses: ./.github/workflows/_release.yml
+    with:
+      release_tag: ${{ needs.check-release.outputs.release_tag }}
+    secrets:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
