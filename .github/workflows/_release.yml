@@ -29,43 +29,6 @@ jobs:
         config: .github/cliff.toml
         args: --latest --strip header
 
-    - name: Download Linux Build
-      uses: actions/download-artifact@v8
-      with:
-        name: gitopolis-linux-x86_64
-
-    - name: Download Windows Build
-      uses: actions/download-artifact@v8
-      with:
-        name: gitopolis-windows-x86_64
-
-    - name: Download macOS x86_64 Build
-      uses: actions/download-artifact@v8
-      with:
-        name: gitopolis-macos-x86_64
-
-    - name: Download macOS aarch64 Build
-      uses: actions/download-artifact@v8
-      with:
-        name: gitopolis-macos-aarch64
-
-    - name: Generate SHA256 Checksums
-      run: |
-        sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz gitopolis-macos-aarch64.tar.gz > SHA256SUMS.txt
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ inputs.release_tag }}
-        name: ${{ inputs.release_tag }}
-        body: ${{ steps.changelog.outputs.content }}
-        files: |
-          gitopolis-linux-x86_64.tar.gz
-          gitopolis-windows-x86_64.zip
-          gitopolis-macos-x86_64.tar.gz
-          gitopolis-macos-aarch64.tar.gz
-          SHA256SUMS.txt
-
     - name: Update Version for crates.io
       run: |
         VERSION="${{ inputs.release_tag }}"
@@ -78,3 +41,45 @@ jobs:
       # --no-verify skips the verification build since CI already built and tested
       # --allow-dirty allows publishing with modified Cargo.toml/Cargo.lock (version update)
       run: cargo publish --no-verify --allow-dirty --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+    - name: Download Linux Build
+      uses: actions/download-artifact@v8
+      with:
+        name: gitopolis-linux-x86_64
+        path: artifacts
+
+    - name: Download Windows Build
+      uses: actions/download-artifact@v8
+      with:
+        name: gitopolis-windows-x86_64
+        path: artifacts
+
+    - name: Download macOS x86_64 Build
+      uses: actions/download-artifact@v8
+      with:
+        name: gitopolis-macos-x86_64
+        path: artifacts
+
+    - name: Download macOS aarch64 Build
+      uses: actions/download-artifact@v8
+      with:
+        name: gitopolis-macos-aarch64
+        path: artifacts
+
+    - name: Generate SHA256 Checksums
+      working-directory: artifacts
+      run: |
+        sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz gitopolis-macos-aarch64.tar.gz > SHA256SUMS.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.release_tag }}
+        name: ${{ inputs.release_tag }}
+        body: ${{ steps.changelog.outputs.content }}
+        files: |
+          artifacts/gitopolis-linux-x86_64.tar.gz
+          artifacts/gitopolis-windows-x86_64.zip
+          artifacts/gitopolis-macos-x86_64.tar.gz
+          artifacts/gitopolis-macos-aarch64.tar.gz
+          artifacts/SHA256SUMS.txt
