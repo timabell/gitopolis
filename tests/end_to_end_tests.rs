@@ -1264,64 +1264,140 @@ url = \"source_upstream\"
 	assert!(upstream_url.ends_with("source_upstream"));
 }
 
-#[test]
-fn sync_read_remotes() {
-	let temp = temp_folder();
-	let path = &temp.path().join("test_repo");
+/// Helper: init a git repo and add remotes
+fn init_git_repo_with_remotes(path: &std::path::Path, remotes: &[(&str, &str)]) {
 	fs::create_dir_all(path).expect("create repo dir failed");
-
-	// Initialize git repo with multiple remotes
 	Command::new("git")
 		.current_dir(path)
 		.args(vec!["init", "--initial-branch", "main"])
 		.output()
 		.expect("git init failed");
+	for (name, url) in remotes {
+		Command::new("git")
+			.current_dir(path)
+			.args(vec!["remote", "add", name, url])
+			.output()
+			.expect("git remote add failed");
+	}
+}
 
-	Command::new("git")
+/// Helper: read a git remote URL
+fn read_git_remote_url(path: &std::path::Path, remote_name: &str) -> Option<String> {
+	let output = Command::new("git")
 		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/origin_url",
-		])
+		.args(vec!["config", &format!("remote.{}.url", remote_name)])
 		.output()
-		.expect("git remote add origin failed");
+		.expect("git config failed");
+	if output.status.success() {
+		Some(
+			String::from_utf8(output.stdout)
+				.expect("utf8 conversion failed")
+				.trim()
+				.to_string(),
+		)
+	} else {
+		None
+	}
+}
 
-	Command::new("git")
+/// Helper: list all git remote names
+fn list_git_remotes(path: &std::path::Path) -> Vec<String> {
+	let output = Command::new("git")
 		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"upstream",
-			"git://example.org/upstream_url",
-		])
+		.args(vec!["remote"])
 		.output()
-		.expect("git remote add upstream failed");
+		.expect("git remote failed");
+	String::from_utf8(output.stdout)
+		.expect("utf8 conversion failed")
+		.lines()
+		.map(|s| s.to_string())
+		.collect()
+}
 
-	// Create initial gitopolis state with just the repo path (no remotes)
+#[test]
+fn sync_read_remotes() {
+	// Tests: added, removed, modified, unchanged, no-remotes edge case
+	let temp = temp_folder();
+
+	// changed_repo: git has origin (unchanged), upstream (added), modified fork URL; config has stale (removed)
+	let changed_path = &temp.path().join("changed_repo");
+	init_git_repo_with_remotes(
+		changed_path,
+		&[
+			("origin", "git://example.org/origin_url"),
+			("upstream", "git://example.org/upstream_url"),
+			("fork", "git://example.org/new_fork_url"),
+		],
+	);
+
+	// unchanged_repo: git matches config exactly (should be skipped in output)
+	let unchanged_path = &temp.path().join("unchanged_repo");
+	init_git_repo_with_remotes(
+		unchanged_path,
+		&[("origin", "git://example.org/origin_url")],
+	);
+
+	// no_remotes_repo: git has no remotes, config has no remotes (should be skipped)
+	let no_remotes_path = &temp.path().join("no_remotes_repo");
+	init_git_repo_with_remotes(no_remotes_path, &[]);
+
 	let initial_state_toml = "[[repos]]
-path = \"test_repo\"
+path = \"changed_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
+
+[repos.remotes.fork]
+name = \"fork\"
+url = \"git://example.org/old_fork_url\"
+
+[repos.remotes.stale]
+name = \"stale\"
+url = \"git://example.org/stale_url\"
+
+[[repos]]
+path = \"no_remotes_repo\"
 tags = []
 
 [repos.remotes]
+
+[[repos]]
+path = \"unchanged_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
 
-	// Run sync --read-remotes
 	gitopolis_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--read-remotes"])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains(
-			"Updated test_repo with remotes from git",
-		));
+		.stderr(predicate::str::contains("Updating .gitopolis.toml with values from git repo remotes..."))
+		.stderr(predicate::str::contains("repo\tstatus\tremote\told_url\tnew_url"))
+		// changed_repo: all statuses
+		.stderr(predicate::str::contains("changed_repo\tunchanged\torigin\tgit://example.org/origin_url"))
+		.stderr(predicate::str::contains("changed_repo\tadded\tupstream\t\tgit://example.org/upstream_url"))
+		.stderr(predicate::str::contains("changed_repo\tmodified\tfork\tgit://example.org/old_fork_url\tgit://example.org/new_fork_url"))
+		.stderr(predicate::str::contains("changed_repo\tremoved\tstale\tgit://example.org/stale_url"))
+		// unchanged repos should not appear
+		.stderr(predicate::str::contains("unchanged_repo").not())
+		// no-remotes repo should not appear
+		.stderr(predicate::str::contains("no_remotes_repo").not());
 
-	// Verify TOML now contains both remotes from git
+	// Verify full TOML after sync
 	let expected_toml = "[[repos]]
-path = \"test_repo\"
+path = \"changed_repo\"
 tags = []
+
+[repos.remotes.fork]
+name = \"fork\"
+url = \"git://example.org/new_fork_url\"
 
 [repos.remotes.origin]
 name = \"origin\"
@@ -1330,88 +1406,125 @@ url = \"git://example.org/origin_url\"
 [repos.remotes.upstream]
 name = \"upstream\"
 url = \"git://example.org/upstream_url\"
+
+[[repos]]
+path = \"no_remotes_repo\"
+tags = []
+
+[repos.remotes]
+
+[[repos]]
+path = \"unchanged_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
 ";
 	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
 }
 
 #[test]
 fn sync_write_remotes() {
+	// Tests: added, removed, modified, unchanged, no-remotes edge case
 	let temp = temp_folder();
-	let path = &temp.path().join("test_repo");
-	fs::create_dir_all(path).expect("create repo dir failed");
 
-	// Initialize git repo with just origin
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	// changed_repo: config has origin (unchanged), upstream (to add), modified fork URL; git has extra (to remove)
+	let changed_path = &temp.path().join("changed_repo");
+	init_git_repo_with_remotes(
+		changed_path,
+		&[
+			("origin", "git://example.org/origin_url"),
+			("fork", "git://example.org/old_fork_url"),
+			("extra", "git://example.org/extra_url"),
+		],
+	);
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/origin_url",
-		])
-		.output()
-		.expect("git remote add origin failed");
+	// unchanged_repo: git matches config exactly (should be skipped in output)
+	let unchanged_path = &temp.path().join("unchanged_repo");
+	init_git_repo_with_remotes(
+		unchanged_path,
+		&[("origin", "git://example.org/origin_url")],
+	);
 
-	// Create gitopolis state with additional remotes
+	// no_remotes_repo: git has no remotes, config has no remotes (should be skipped)
+	let no_remotes_path = &temp.path().join("no_remotes_repo");
+	init_git_repo_with_remotes(no_remotes_path, &[]);
+
 	let initial_state_toml = "[[repos]]
-path = \"test_repo\"
+path = \"changed_repo\"
 tags = []
 
 [repos.remotes.origin]
 name = \"origin\"
 url = \"git://example.org/origin_url\"
 
+[repos.remotes.fork]
+name = \"fork\"
+url = \"git://example.org/new_fork_url\"
+
 [repos.remotes.upstream]
 name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 
-[repos.remotes.fork]
-name = \"fork\"
-url = \"git://example.org/fork_url\"
+[[repos]]
+path = \"no_remotes_repo\"
+tags = []
+
+[repos.remotes]
+
+[[repos]]
+path = \"unchanged_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
 
-	// Run sync --write-remotes
 	gitopolis_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--write-remotes"])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains(
-			"Added remote upstream to test_repo",
-		))
-		.stderr(predicate::str::contains("Added remote fork to test_repo"));
+		.stderr(predicate::str::contains("Updating git repo remotes with values from .gitopolis.toml..."))
+		.stderr(predicate::str::contains("repo\tstatus\tremote\told_url\tnew_url"))
+		// changed_repo: all statuses
+		.stderr(predicate::str::contains("changed_repo\tunchanged\torigin\tgit://example.org/origin_url"))
+		.stderr(predicate::str::contains("changed_repo\tadded\tupstream\t\tgit://example.org/upstream_url"))
+		.stderr(predicate::str::contains("changed_repo\tmodified\tfork\tgit://example.org/old_fork_url\tgit://example.org/new_fork_url"))
+		.stderr(predicate::str::contains("changed_repo\tremoved\textra\tgit://example.org/extra_url"))
+		// unchanged repos should not appear
+		.stderr(predicate::str::contains("unchanged_repo").not())
+		// no-remotes repo should not appear
+		.stderr(predicate::str::contains("no_remotes_repo").not());
 
-	// Verify git now has all remotes
-	let upstream_output = Command::new("git")
-		.current_dir(path)
-		.args(vec!["config", "remote.upstream.url"])
-		.output()
-		.expect("git config failed");
-	assert!(upstream_output.status.success());
-	let upstream_url = String::from_utf8(upstream_output.stdout)
-		.expect("utf8 conversion failed")
-		.trim()
-		.to_string();
-	assert_eq!("git://example.org/upstream_url", upstream_url);
+	// Verify TOML is unchanged (write-remotes doesn't modify config)
+	assert_eq!(initial_state_toml, read_gitopolis_state_toml(&temp));
 
-	let fork_output = Command::new("git")
-		.current_dir(path)
-		.args(vec!["config", "remote.fork.url"])
-		.output()
-		.expect("git config failed");
-	assert!(fork_output.status.success());
-	let fork_url = String::from_utf8(fork_output.stdout)
-		.expect("utf8 conversion failed")
-		.trim()
-		.to_string();
-	assert_eq!("git://example.org/fork_url", fork_url);
+	// Verify git: upstream was added
+	assert_eq!(
+		read_git_remote_url(changed_path, "upstream"),
+		Some("git://example.org/upstream_url".to_string())
+	);
+	// origin unchanged
+	assert_eq!(
+		read_git_remote_url(changed_path, "origin"),
+		Some("git://example.org/origin_url".to_string())
+	);
+	// extra still exists (write-remotes doesn't remove)
+	assert_eq!(
+		read_git_remote_url(changed_path, "extra"),
+		Some("git://example.org/extra_url".to_string())
+	);
+	// fork URL updated to config value
+	assert_eq!(
+		read_git_remote_url(changed_path, "fork"),
+		Some("git://example.org/new_fork_url".to_string())
+	);
+	// unchanged_repo untouched
+	assert!(list_git_remotes(unchanged_path) == vec!["origin"]);
 }
 
 #[test]
@@ -1477,9 +1590,7 @@ tags = []
 		.args(vec!["sync", "--read-remotes", "--tag", "sync-tag"])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains(
-			"Updated tagged_repo with remotes from git",
-		))
+		.stderr(predicate::str::contains("tagged_repo\tadded"))
 		.stderr(predicate::str::contains("untagged_repo").not());
 
 	// Verify only tagged repo was updated
@@ -1539,12 +1650,7 @@ url = \"git://example.org/untagged_origin\"
 		.args(vec!["sync", "--write-remotes", "--tag", "sync-tag"])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains(
-			"Added remote origin to tagged_repo",
-		))
-		.stderr(predicate::str::contains(
-			"Added remote upstream to tagged_repo",
-		))
+		.stderr(predicate::str::contains("tagged_repo\tadded"))
 		.stderr(predicate::str::contains("untagged_repo").not());
 
 	// Verify only tagged repo got remotes
@@ -1618,6 +1724,161 @@ url = \"git://example.org/test_url\"
 			"Warning: Could not write remotes to missing_repo",
 		))
 		.stderr(predicate::str::contains("1 repos failed to sync"));
+}
+
+#[test]
+fn sync_read_remotes_dry_run() {
+	// Same scenario as sync_read_remotes but verifies nothing is written
+	let temp = temp_folder();
+
+	let changed_path = &temp.path().join("changed_repo");
+	init_git_repo_with_remotes(
+		changed_path,
+		&[
+			("origin", "git://example.org/origin_url"),
+			("upstream", "git://example.org/upstream_url"),
+			("fork", "git://example.org/new_fork_url"),
+		],
+	);
+
+	let unchanged_path = &temp.path().join("unchanged_repo");
+	init_git_repo_with_remotes(
+		unchanged_path,
+		&[("origin", "git://example.org/origin_url")],
+	);
+
+	let no_remotes_path = &temp.path().join("no_remotes_repo");
+	init_git_repo_with_remotes(no_remotes_path, &[]);
+
+	let initial_state_toml = "[[repos]]
+path = \"changed_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
+
+[repos.remotes.fork]
+name = \"fork\"
+url = \"git://example.org/old_fork_url\"
+
+[repos.remotes.stale]
+name = \"stale\"
+url = \"git://example.org/stale_url\"
+
+[[repos]]
+path = \"no_remotes_repo\"
+tags = []
+
+[repos.remotes]
+
+[[repos]]
+path = \"unchanged_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
+";
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["sync", "--read-remotes", "--dry-run"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains("Updating .gitopolis.toml with values from git repo remotes..."))
+		.stderr(predicate::str::contains("repo\tstatus\tremote\told_url\tnew_url"))
+		.stderr(predicate::str::contains("changed_repo\tunchanged\torigin\tgit://example.org/origin_url"))
+		.stderr(predicate::str::contains("changed_repo\tadded\tupstream\t\tgit://example.org/upstream_url"))
+		.stderr(predicate::str::contains("changed_repo\tmodified\tfork\tgit://example.org/old_fork_url\tgit://example.org/new_fork_url"))
+		.stderr(predicate::str::contains("changed_repo\tremoved\tstale\tgit://example.org/stale_url"))
+		.stderr(predicate::str::contains("unchanged_repo").not())
+		.stderr(predicate::str::contains("no_remotes_repo").not());
+
+	// Verify TOML is unchanged
+	assert_eq!(initial_state_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
+fn sync_write_remotes_dry_run() {
+	// Same scenario as sync_write_remotes but verifies nothing is written
+	let temp = temp_folder();
+
+	let changed_path = &temp.path().join("changed_repo");
+	init_git_repo_with_remotes(
+		changed_path,
+		&[
+			("origin", "git://example.org/origin_url"),
+			("fork", "git://example.org/old_fork_url"),
+			("extra", "git://example.org/extra_url"),
+		],
+	);
+
+	let unchanged_path = &temp.path().join("unchanged_repo");
+	init_git_repo_with_remotes(
+		unchanged_path,
+		&[("origin", "git://example.org/origin_url")],
+	);
+
+	let no_remotes_path = &temp.path().join("no_remotes_repo");
+	init_git_repo_with_remotes(no_remotes_path, &[]);
+
+	let initial_state_toml = "[[repos]]
+path = \"changed_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
+
+[repos.remotes.fork]
+name = \"fork\"
+url = \"git://example.org/new_fork_url\"
+
+[repos.remotes.upstream]
+name = \"upstream\"
+url = \"git://example.org/upstream_url\"
+
+[[repos]]
+path = \"no_remotes_repo\"
+tags = []
+
+[repos.remotes]
+
+[[repos]]
+path = \"unchanged_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/origin_url\"
+";
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["sync", "--write-remotes", "--dry-run"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains("Updating git repo remotes with values from .gitopolis.toml..."))
+		.stderr(predicate::str::contains("repo\tstatus\tremote\told_url\tnew_url"))
+		.stderr(predicate::str::contains("changed_repo\tunchanged\torigin\tgit://example.org/origin_url"))
+		.stderr(predicate::str::contains("changed_repo\tadded\tupstream\t\tgit://example.org/upstream_url"))
+		.stderr(predicate::str::contains("changed_repo\tmodified\tfork\tgit://example.org/old_fork_url\tgit://example.org/new_fork_url"))
+		.stderr(predicate::str::contains("changed_repo\tremoved\textra\tgit://example.org/extra_url"))
+		.stderr(predicate::str::contains("unchanged_repo").not())
+		.stderr(predicate::str::contains("no_remotes_repo").not());
+
+	// Verify git remotes are unchanged
+	assert_eq!(
+		list_git_remotes(changed_path),
+		vec!["extra", "fork", "origin"]
+	);
+	assert_eq!(
+		read_git_remote_url(changed_path, "fork"),
+		Some("git://example.org/old_fork_url".to_string())
+	);
 }
 
 #[test]
@@ -2511,12 +2772,8 @@ tags = [\"foo\"]
 		])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains(
-			"Updated repo1 with remotes from git",
-		))
-		.stderr(predicate::str::contains(
-			"Updated repo2 with remotes from git",
-		))
+		.stderr(predicate::str::contains("repo1\tadded"))
+		.stderr(predicate::str::contains("repo2\tadded"))
 		.stderr(predicate::str::contains("repo3").not());
 
 	// Verify only repo1 and repo2 were updated
@@ -2606,10 +2863,8 @@ url = \"git://example.org/repo3_origin\"
 		])
 		.assert()
 		.success()
-		.stderr(predicate::str::contains("Added remote origin to repo1"))
-		.stderr(predicate::str::contains("Added remote upstream to repo1"))
-		.stderr(predicate::str::contains("Added remote origin to repo2"))
-		.stderr(predicate::str::contains("Added remote fork to repo2"))
+		.stderr(predicate::str::contains("repo1\tadded"))
+		.stderr(predicate::str::contains("repo2\tadded"))
 		.stderr(predicate::str::contains("repo3").not());
 
 	// Verify only repo1 and repo2 got remotes

@@ -1,6 +1,6 @@
 use crate::git::Git;
 use crate::gitopolis::GitopolisError::*;
-use crate::repos::{Repo, RepoInfo, Repos};
+use crate::repos::{Remote, Repo, RepoInfo, Repos};
 use crate::storage::Storage;
 use crate::tag_filter::TagFilter;
 use log::info;
@@ -145,21 +145,53 @@ impl Gitopolis {
 		Ok(flat)
 	}
 
-	pub fn sync_read_remotes(&mut self, filter: &TagFilter) -> Result<(), GitopolisError> {
+	pub fn sync_read_remotes(
+		&mut self,
+		filter: &TagFilter,
+		dry_run: bool,
+	) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
 		let repo_list = self.list(filter)?;
 		let mut error_count = 0;
 
-		for repo in repo_list {
+		info!("Updating .gitopolis.toml with values from git repo remotes...");
+		info!("repo\tstatus\tremote\told_url\tnew_url");
+		for repo in &repo_list {
 			match self.git.read_all_remotes(repo.path.clone()) {
-				Ok(remotes) => {
-					// Find the repo in the mutable repos structure and update its remotes
-					if let Some(repo_mut) = repos.find_repo(repo.path.clone()) {
-						repo_mut.remotes.clear();
-						for (name, url) in remotes {
-							repo_mut.add_remote(name, url);
+				Ok(git_remotes) => {
+					if !Self::remotes_differ(&repo.remotes, &git_remotes) {
+						continue;
+					}
+
+					for (name, url) in &git_remotes {
+						match repo.remotes.get(name) {
+							Some(existing) if existing.url == *url => {
+								info!("{}\tunchanged\t{}\t{}", repo.path, name, url);
+							}
+							Some(existing) => {
+								info!(
+									"{}\tmodified\t{}\t{}\t{}",
+									repo.path, name, existing.url, url
+								);
+							}
+							None => {
+								info!("{}\tadded\t{}\t\t{}", repo.path, name, url);
+							}
 						}
-						info!("Updated {} with remotes from git", repo.path);
+					}
+					for (name, remote) in &repo.remotes {
+						if !git_remotes.contains_key(name) {
+							info!("{}\tremoved\t{}\t{}", repo.path, name, remote.url);
+						}
+					}
+
+					if !dry_run {
+						if let Some(repo_mut) = repos.find_repo(repo.path.clone()) {
+							repo_mut.remotes.clear();
+							for (name, url) in git_remotes {
+								repo_mut.add_remote(name, url);
+							}
+						}
 					}
 				}
 				Err(_) => {
@@ -169,7 +201,9 @@ impl Gitopolis {
 			}
 		}
 
-		self.save(repos)?;
+		if !dry_run {
+			self.save(repos)?;
+		}
 
 		if error_count > 0 {
 			eprintln!("{error_count} repos failed to sync");
@@ -179,12 +213,33 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	pub fn sync_write_remotes(&self, filter: &TagFilter) -> Result<(), GitopolisError> {
+	fn remotes_differ(
+		config_remotes: &BTreeMap<String, Remote>,
+		git_remotes: &BTreeMap<String, String>,
+	) -> bool {
+		if config_remotes.len() != git_remotes.len() {
+			return true;
+		}
+		for (name, url) in git_remotes {
+			match config_remotes.get(name) {
+				Some(existing) if existing.url == *url => {}
+				_ => return true,
+			}
+		}
+		false
+	}
+
+	pub fn sync_write_remotes(
+		&self,
+		filter: &TagFilter,
+		dry_run: bool,
+	) -> Result<(), GitopolisError> {
 		let repo_list = self.list(filter)?;
 		let mut error_count = 0;
 
-		for repo in repo_list {
-			// Get current remotes from git
+		info!("Updating git repo remotes with values from .gitopolis.toml...");
+		info!("repo\tstatus\tremote\told_url\tnew_url");
+		for repo in &repo_list {
 			let current_remotes = match self.git.read_all_remotes(repo.path.clone()) {
 				Ok(remotes) => remotes,
 				Err(_) => {
@@ -194,11 +249,33 @@ impl Gitopolis {
 				}
 			};
 
-			// Add any missing remotes from config
+			if !Self::remotes_differ(&repo.remotes, &current_remotes) {
+				continue;
+			}
+			// Show config remotes (these are the source of truth for write)
 			for (name, remote) in &repo.remotes {
-				if !current_remotes.contains_key(name) {
-					self.git.add_remote(&repo.path, name, &remote.url);
-					info!("Added remote {} to {}", name, repo.path);
+				match current_remotes.get(name) {
+					Some(url) if *url == remote.url => {
+						info!("{}\tunchanged\t{}\t{}", repo.path, name, remote.url);
+					}
+					Some(url) => {
+						info!("{}\tmodified\t{}\t{}\t{}", repo.path, name, url, remote.url);
+						if !dry_run {
+							self.git.set_remote_url(&repo.path, name, &remote.url);
+						}
+					}
+					None => {
+						info!("{}\tadded\t{}\t\t{}", repo.path, name, remote.url);
+						if !dry_run {
+							self.git.add_remote(&repo.path, name, &remote.url);
+						}
+					}
+				}
+			}
+			// Show git remotes not in config (mirror of read's "added")
+			for (name, url) in &current_remotes {
+				if !repo.remotes.contains_key(name) {
+					info!("{}\tremoved\t{}\t{}", repo.path, name, url);
 				}
 			}
 		}

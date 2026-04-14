@@ -514,6 +514,10 @@ impl Git for FakeGit {
 		// No-op for fake implementation
 	}
 
+	fn set_remote_url(&self, _path: &str, _remote_name: &str, _url: &str) {
+		// No-op for fake implementation
+	}
+
 	fn clone(
 		&self,
 		path: &str,

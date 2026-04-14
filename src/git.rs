@@ -9,6 +9,7 @@ pub trait Git {
 	fn read_url(&self, path: String, remote_name: String) -> Result<String, GitopolisError>;
 	fn read_all_remotes(&self, path: String) -> Result<BTreeMap<String, String>, GitopolisError>;
 	fn add_remote(&self, path: &str, remote_name: &str, url: &str);
+	fn set_remote_url(&self, path: &str, remote_name: &str, url: &str);
 	/// Clone a repo. Returns Ok(true) if cloned, Ok(false) if already exists (skipped).
 	fn clone(
 		&self,
@@ -72,6 +73,19 @@ impl Git for GitImpl {
 			let stderr =
 				String::from_utf8(output.stderr).expect("Error converting stderr to string");
 			eprintln!("Warning: Failed to add remote {remote_name}: {stderr}");
+		}
+	}
+
+	fn set_remote_url(&self, path: &str, remote_name: &str, url: &str) {
+		let output = Command::new("git")
+			.current_dir(path)
+			.args(["remote", "set-url", remote_name, url])
+			.output()
+			.expect("Error running git remote set-url");
+		if !output.status.success() {
+			let stderr =
+				String::from_utf8(output.stderr).expect("Error converting stderr to string");
+			eprintln!("Warning: Failed to set URL for remote {remote_name}: {stderr}");
 		}
 	}
 

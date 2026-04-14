@@ -89,9 +89,12 @@ enum Commands {
 		/// Update .gitopolis.toml from remotes in git repositories
 		#[arg(long, conflicts_with = "write_remotes")]
 		read_remotes: bool,
-		/// Update git repositories with remotes from .gitopolis.toml
+		/// Update git repositories with remotes from .gitopolis.toml (adds missing remotes and updates URLs, but will not remove any remotes)
 		#[arg(long, conflicts_with = "read_remotes")]
 		write_remotes: bool,
+		/// Show what would be changed without making any modifications
+		#[arg(long)]
+		dry_run: bool,
 		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
 		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
 		#[arg(short, long)]
@@ -188,16 +191,17 @@ fn main() {
 		Some(Commands::Sync {
 			read_remotes,
 			write_remotes,
+			dry_run,
 			tag: tag_args,
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
 			if *read_remotes {
 				init_gitopolis()
-					.sync_read_remotes(&filter)
+					.sync_read_remotes(&filter, *dry_run)
 					.expect("Sync read failed");
 			} else if *write_remotes {
 				init_gitopolis()
-					.sync_write_remotes(&filter)
+					.sync_write_remotes(&filter, *dry_run)
 					.expect("Sync write failed");
 			} else {
 				eprintln!("Error: Must specify either --read-remotes or --write-remotes");
