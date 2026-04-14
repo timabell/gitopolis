@@ -126,6 +126,42 @@ impl Repos {
 	) -> Result<(), GitopolisError> {
 		self.tag(tag_name, repo_folders, true)
 	}
+	pub fn rename_tag(
+		&mut self,
+		old_name: &str,
+		new_name: &str,
+		merge: bool,
+	) -> Result<Vec<String>, GitopolisError> {
+		// Check for conflicts if not merging
+		if !merge {
+			for repo in &self.repos {
+				if repo.tags.iter().any(|t| t == old_name)
+					&& repo.tags.iter().any(|t| t == new_name)
+				{
+					return Err(GitopolisError::StateError {
+						message: format!(
+							"Repo '{}' already has tag '{}'. Use --merge to combine.",
+							repo.path, new_name
+						),
+					});
+				}
+			}
+		}
+
+		let mut affected = Vec::new();
+		for repo in &mut self.repos {
+			if let Some(ix) = repo.tags.iter().position(|t| t == old_name) {
+				repo.tags.remove(ix);
+				if !repo.tags.iter().any(|t| t == new_name) {
+					repo.tags.push(new_name.to_string());
+					repo.tags.sort_by_key(|a| a.to_lowercase());
+				}
+				affected.push(repo.path.clone());
+			}
+		}
+		Ok(affected)
+	}
+
 	pub fn remove_tag_from_all(&mut self, tag_name: &str) -> Vec<String> {
 		let mut affected = Vec::new();
 		for repo in &mut self.repos {

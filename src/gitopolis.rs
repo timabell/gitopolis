@@ -72,6 +72,17 @@ impl Gitopolis {
 		repos.remove_tag(tag_name, normalize_folders(repo_folders))?;
 		self.save(repos)
 	}
+	pub fn rename_tag(
+		&mut self,
+		old_name: &str,
+		new_name: &str,
+		merge: bool,
+	) -> Result<Vec<String>, GitopolisError> {
+		let mut repos = self.load()?;
+		let affected = repos.rename_tag(old_name, new_name, merge)?;
+		self.save(repos)?;
+		Ok(affected)
+	}
 	pub fn remove_tag_from_all(&mut self, tag_name: &str) -> Result<Vec<String>, GitopolisError> {
 		let mut repos = self.load()?;
 		let affected = repos.remove_tag_from_all(tag_name);

@@ -110,6 +110,11 @@ enum Commands {
 		#[clap(subcommand)]
 		entity: MoveEntity,
 	},
+	/// Rename a tag or other entity
+	Rename {
+		#[clap(subcommand)]
+		entity: RenameEntity,
+	},
 }
 
 #[derive(Subcommand)]
@@ -120,6 +125,20 @@ enum MoveEntity {
 		old_path: String,
 		/// New path for the repository
 		new_path: String,
+	},
+}
+
+#[derive(Subcommand)]
+enum RenameEntity {
+	/// Rename a tag across all repos. Use --merge if some repos already have the new tag.
+	Tag {
+		/// Current tag name
+		old_name: String,
+		/// New tag name
+		new_name: String,
+		/// Allow renaming even if some repos already have the new tag
+		#[clap(long)]
+		merge: bool,
 	},
 }
 
@@ -251,6 +270,28 @@ fn main() {
 					}
 				}
 			}
+		},
+		Some(Commands::Rename { entity }) => match entity {
+			RenameEntity::Tag {
+				old_name,
+				new_name,
+				merge,
+			} => match init_gitopolis().rename_tag(old_name, new_name, *merge) {
+				Ok(affected) => {
+					if affected.is_empty() {
+						println!("Tag '{}' not found on any repos", old_name);
+					} else {
+						println!("Renamed tag '{}' to '{}' on:", old_name, new_name);
+						for repo in &affected {
+							println!("{}", repo);
+						}
+					}
+				}
+				Err(error) => {
+					eprintln!("Error: {}", error.message());
+					std::process::exit(1);
+				}
+			},
 		},
 		None => {
 			panic!("no command") // this doesn't happen because help shows instead

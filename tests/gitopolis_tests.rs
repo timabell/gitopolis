@@ -489,6 +489,146 @@ url = \"git://example.org/repo3\"
 	assert_eq!(vec!["repo1", "repo2"], affected);
 }
 
+#[test]
+fn rename_tag() {
+	let starting_state = "[[repos]]
+path = \"repo1\"
+tags = [\"old_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"old_tag\", \"other\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"
+
+[[repos]]
+path = \"repo3\"
+tags = [\"other\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo3\"\
+";
+
+	let expected_toml = "[[repos]]
+path = \"repo1\"
+tags = [\"new_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"new_tag\", \"other\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"
+
+[[repos]]
+path = \"repo3\"
+tags = [\"other\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo3\"
+";
+
+	let storage = FakeStorage::new()
+		.with_contents(starting_state.to_string())
+		.with_file_saved_callback(|state| assert_eq!(expected_toml.to_owned(), state))
+		.boxed();
+
+	let git = FakeGit::new().boxed();
+	let mut gitopolis = Gitopolis::new(storage, git);
+
+	let affected = gitopolis
+		.rename_tag("old_tag", "new_tag", false)
+		.expect("Failed to rename tag");
+
+	assert_eq!(vec!["repo1", "repo2"], affected);
+}
+
+#[test]
+fn rename_tag_merge() {
+	let starting_state = "[[repos]]
+path = \"repo1\"
+tags = [\"old_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"new_tag\", \"old_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"\
+";
+
+	let expected_toml = "[[repos]]
+path = \"repo1\"
+tags = [\"new_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"new_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"
+";
+
+	let storage = FakeStorage::new()
+		.with_contents(starting_state.to_string())
+		.with_file_saved_callback(|state| assert_eq!(expected_toml.to_owned(), state))
+		.boxed();
+
+	let git = FakeGit::new().boxed();
+	let mut gitopolis = Gitopolis::new(storage, git);
+
+	let affected = gitopolis
+		.rename_tag("old_tag", "new_tag", true)
+		.expect("Failed to rename tag with merge");
+
+	assert_eq!(vec!["repo1", "repo2"], affected);
+}
+
+#[test]
+fn rename_tag_conflict_without_merge() {
+	let starting_state = "[[repos]]
+path = \"repo1\"
+tags = [\"new_tag\", \"old_tag\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"\
+";
+
+	let storage = FakeStorage::new()
+		.with_contents(starting_state.to_string())
+		.boxed();
+
+	let git = FakeGit::new().boxed();
+	let mut gitopolis = Gitopolis::new(storage, git);
+
+	let result = gitopolis.rename_tag("old_tag", "new_tag", false);
+	assert!(result.is_err());
+}
+
 struct FakeStorage {
 	exists: bool,
 	contents: String,

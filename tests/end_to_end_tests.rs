@@ -722,6 +722,82 @@ fn tag_remove_from_all_repos_not_found() {
 }
 
 #[test]
+fn rename_tag() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo1", "git://example.org/url1", vec!["old_name"]);
+	add_a_repo_with_tags(
+		&temp,
+		"repo2",
+		"git://example.org/url2",
+		vec!["old_name", "other"],
+	);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["rename", "tag", "old_name", "new_name"])
+		.assert()
+		.success()
+		.stdout("Renamed tag 'old_name' to 'new_name' on:\nrepo1\nrepo2\n");
+
+	let actual_toml = read_gitopolis_state_toml(&temp);
+	assert!(actual_toml.contains("\"new_name\""));
+	assert!(!actual_toml.contains("\"old_name\""));
+}
+
+#[test]
+fn rename_tag_merge() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo1", "git://example.org/url1", vec!["old_name"]);
+	add_a_repo_with_tags(
+		&temp,
+		"repo2",
+		"git://example.org/url2",
+		vec!["new_name", "old_name"],
+	);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["rename", "tag", "old_name", "new_name", "--merge"])
+		.assert()
+		.success()
+		.stdout("Renamed tag 'old_name' to 'new_name' on:\nrepo1\nrepo2\n");
+
+	let actual_toml = read_gitopolis_state_toml(&temp);
+	assert!(!actual_toml.contains("\"old_name\""));
+}
+
+#[test]
+fn rename_tag_conflict_without_merge() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(
+		&temp,
+		"repo1",
+		"git://example.org/url1",
+		vec!["old_name", "new_name"],
+	);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["rename", "tag", "old_name", "new_name"])
+		.assert()
+		.failure()
+		.stderr(predicates::str::contains("Use --merge to combine"));
+}
+
+#[test]
+fn rename_tag_not_found() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo1", "git://example.org/url1", vec!["other"]);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["rename", "tag", "nonexistent", "new_name"])
+		.assert()
+		.success()
+		.stdout("Tag 'nonexistent' not found on any repos\n");
+}
+
+#[test]
 fn tags() {
 	let temp = temp_folder();
 	add_a_repo_with_tags(
