@@ -72,6 +72,12 @@ impl Gitopolis {
 		repos.remove_tag(tag_name, normalize_folders(repo_folders))?;
 		self.save(repos)
 	}
+	pub fn remove_tag_from_all(&mut self, tag_name: &str) -> Result<Vec<String>, GitopolisError> {
+		let mut repos = self.load()?;
+		let affected = repos.remove_tag_from_all(tag_name);
+		self.save(repos)?;
+		Ok(affected)
+	}
 	/// Filter repos by tag filter with AND/OR logic.
 	pub fn list(&self, filter: &TagFilter) -> Result<Vec<Repo>, GitopolisError> {
 		let repos = self.load()?;

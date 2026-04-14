@@ -685,6 +685,43 @@ url = \"git://example.org/test_url\"
 }
 
 #[test]
+fn tag_remove_from_all_repos() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(
+		&temp,
+		"repo1",
+		"git://example.org/url1",
+		vec!["remove_me", "keep"],
+	);
+	add_a_repo_with_tags(&temp, "repo2", "git://example.org/url2", vec!["remove_me"]);
+	add_a_repo_with_tags(&temp, "repo3", "git://example.org/url3", vec!["keep"]);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["tag", "--remove", "remove_me"])
+		.assert()
+		.success()
+		.stdout("Removed tags:\nrepo1 remove_me\nrepo2 remove_me\n");
+
+	let actual_toml = read_gitopolis_state_toml(&temp);
+	assert!(actual_toml.contains("tags = [\"keep\"]"));
+	assert!(!actual_toml.contains("remove_me"));
+}
+
+#[test]
+fn tag_remove_from_all_repos_not_found() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo1", "git://example.org/url1", vec!["keep"]);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["tag", "--remove", "nonexistent"])
+		.assert()
+		.success()
+		.stdout("Tags nonexistent not found on any repos\n");
+}
+
+#[test]
 fn tags() {
 	let temp = temp_folder();
 	add_a_repo_with_tags(

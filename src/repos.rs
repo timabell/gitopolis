@@ -126,6 +126,17 @@ impl Repos {
 	) -> Result<(), GitopolisError> {
 		self.tag(tag_name, repo_folders, true)
 	}
+	pub fn remove_tag_from_all(&mut self, tag_name: &str) -> Vec<String> {
+		let mut affected = Vec::new();
+		for repo in &mut self.repos {
+			if let Some(ix) = repo.tags.iter().position(|t| t == tag_name) {
+				repo.tags.remove(ix);
+				affected.push(repo.path.clone());
+			}
+		}
+		affected
+	}
+
 	fn tag(
 		&mut self,
 		tag_name: &str,

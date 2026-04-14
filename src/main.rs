@@ -6,6 +6,7 @@ use gitopolis::repos::Repo;
 use gitopolis::storage::StorageImpl;
 use gitopolis::tag_filter::TagFilter;
 use log::LevelFilter;
+use std::collections::BTreeMap;
 use std::io::Write;
 
 /// A CLI tool for managing multiple git repositories
@@ -54,12 +55,11 @@ enum Commands {
 	},
 	/// Add/remove repo tags. Use tags to organise repos and allow running commands against subsets of the repo list. Supports comma-separated tag lists (e.g., "tag1,tag2,tag3").
 	Tag {
-		/// Remove this tag from these repo_folders.
+		/// Remove this tag from these repo_folders. If no repos specified, removes from ALL repos.
 		#[clap(short, long)]
 		remove: bool,
 		#[clap(required = true)]
 		tag: String,
-		#[clap(required = true)]
 		repo_folders: Vec<String>,
 	},
 	/// List known tags. Use "long" to list repos per tag.
@@ -175,15 +175,43 @@ fn main() {
 			remove,
 		}) => {
 			let tags: Vec<&str> = tag_name.split(',').map(|s| s.trim()).collect();
-			for tag in tags {
-				let result = if *remove {
-					init_gitopolis().remove_tag(tag, repo_folders)
+			if *remove && repo_folders.is_empty() {
+				let mut repo_tags: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+				for tag in &tags {
+					match init_gitopolis().remove_tag_from_all(tag) {
+						Ok(affected) => {
+							for repo in affected {
+								repo_tags.entry(repo).or_default().push(tag);
+							}
+						}
+						Err(error) => {
+							eprintln!("Error: {}", error.message());
+							std::process::exit(1);
+						}
+					}
+				}
+				if repo_tags.is_empty() {
+					println!("Tags {} not found on any repos", tags.join(","));
 				} else {
-					init_gitopolis().add_tag(tag, repo_folders)
-				};
-				if let Err(error) = result {
-					eprintln!("Error: {}", error.message());
-					std::process::exit(1);
+					println!("Removed tags:");
+					for (repo, removed_tags) in &repo_tags {
+						println!("{} {}", repo, removed_tags.join(","));
+					}
+				}
+			} else if !*remove && repo_folders.is_empty() {
+				eprintln!("Error: repo_folders are required when adding tags");
+				std::process::exit(1);
+			} else {
+				for tag in tags {
+					let result = if *remove {
+						init_gitopolis().remove_tag(tag, repo_folders)
+					} else {
+						init_gitopolis().add_tag(tag, repo_folders)
+					};
+					if let Err(error) = result {
+						eprintln!("Error: {}", error.message());
+						std::process::exit(1);
+					}
 				}
 			}
 		}

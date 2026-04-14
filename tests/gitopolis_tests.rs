@@ -422,6 +422,73 @@ url = \"git://example.org/upstream_url\"\
 	);
 }
 
+#[test]
+fn remove_tag_from_all_repos() {
+	let starting_state = "[[repos]]
+path = \"repo1\"
+tags = [\"keep\", \"remove_me\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"remove_me\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"
+
+[[repos]]
+path = \"repo3\"
+tags = [\"keep\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo3\"\
+";
+
+	let expected_toml = "[[repos]]
+path = \"repo1\"
+tags = [\"keep\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo1\"
+
+[[repos]]
+path = \"repo2\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo2\"
+
+[[repos]]
+path = \"repo3\"
+tags = [\"keep\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/repo3\"
+";
+
+	let storage = FakeStorage::new()
+		.with_contents(starting_state.to_string())
+		.with_file_saved_callback(|state| assert_eq!(expected_toml.to_owned(), state))
+		.boxed();
+
+	let git = FakeGit::new().boxed();
+	let mut gitopolis = Gitopolis::new(storage, git);
+
+	let affected = gitopolis
+		.remove_tag_from_all("remove_me")
+		.expect("Failed to remove tag from all repos");
+
+	assert_eq!(vec!["repo1", "repo2"], affected);
+}
+
 struct FakeStorage {
 	exists: bool,
 	contents: String,
