@@ -72,7 +72,7 @@ jobs:
         sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz gitopolis-macos-aarch64.tar.gz > SHA256SUMS.txt
 
     - name: Create Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ inputs.release_tag }}
         name: ${{ inputs.release_tag }}
