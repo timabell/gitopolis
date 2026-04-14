@@ -354,10 +354,20 @@ impl Gitopolis {
 		Ok(folder_name)
 	}
 
-	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<(), GitopolisError> {
+	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<String, GitopolisError> {
 		let mut repos = self.load()?;
 		let normalized_old = normalize_folder(old_path.to_string());
-		let normalized_new = normalize_folder(new_path.to_string());
+		let is_dir_target = new_path.ends_with('/') || new_path.ends_with('\\');
+		let normalized_new = if is_dir_target {
+			let base = std::path::Path::new(&normalized_old)
+				.file_name()
+				.map(|f| f.to_string_lossy().to_string())
+				.unwrap_or_else(|| normalized_old.clone());
+			let dir = normalize_folder(new_path.to_string());
+			format!("{}/{}", dir, base)
+		} else {
+			normalize_folder(new_path.to_string())
+		};
 
 		// Find the repo in the config
 		let repo = repos
@@ -381,10 +391,10 @@ impl Gitopolis {
 
 		// Update the config: remove old entry and add new one with same tags/remotes
 		repos.remove(vec![normalized_old]);
-		repos.add_with_tags_and_remotes(normalized_new, repo.tags, repo.remotes);
+		repos.add_with_tags_and_remotes(normalized_new.clone(), repo.tags, repo.remotes);
 
 		self.save(repos)?;
-		Ok(())
+		Ok(normalized_new)
 	}
 
 	fn save(&self, repos: Repos) -> Result<(), GitopolisError> {

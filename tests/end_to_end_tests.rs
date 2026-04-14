@@ -2361,6 +2361,97 @@ url = \"git://example.org/test_url\"
 }
 
 #[test]
+fn move_repo_into_folder() {
+	// When new_path ends with /, treat it as a directory and move repo into it
+	// Issue: https://github.com/timabell/gitopolis/issues/264
+	let temp = temp_folder();
+	add_a_repo(&temp, "my_repo", "git://example.org/test_url");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "my_repo", "dst/"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains("Moved my_repo to dst/my_repo"));
+
+	// Verify old location doesn't exist
+	assert!(!temp.path().join("my_repo").exists());
+
+	// Verify new location exists inside dst/
+	assert!(temp.path().join("dst/my_repo").exists());
+
+	// Verify config is updated
+	let expected_toml = "[[repos]]
+path = \"dst/my_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/test_url\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
+fn move_repo_into_folder_nested_source() {
+	// When source is nested and new_path ends with /, use only the final component
+	let temp = temp_folder();
+	add_a_repo(&temp, "services/auth", "git://example.org/test_url");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "services/auth", "apps/"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains("Moved services/auth to apps/auth"));
+
+	assert!(!temp.path().join("services/auth").exists());
+	assert!(temp.path().join("apps/auth").exists());
+
+	let expected_toml = "[[repos]]
+path = \"apps/auth\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/test_url\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
+fn move_repo_into_existing_folder() {
+	// When destination folder already exists and path ends with /, move repo into it
+	let temp = temp_folder();
+	add_a_repo(&temp, "my_repo", "git://example.org/test_url");
+
+	// Create the destination folder ahead of time
+	std::fs::create_dir_all(temp.path().join("existing_dir")).unwrap();
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "my_repo", "existing_dir/"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains(
+			"Moved my_repo to existing_dir/my_repo",
+		));
+
+	assert!(!temp.path().join("my_repo").exists());
+	assert!(temp.path().join("existing_dir/my_repo").exists());
+
+	let expected_toml = "[[repos]]
+path = \"existing_dir/my_repo\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/test_url\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
 fn move_repo_not_found() {
 	// Test that move fails when repo doesn't exist
 	// Issue: https://github.com/rustworkshop/gitopolis/issues/157

@@ -261,8 +261,8 @@ fn main() {
 		Some(Commands::Move { entity }) => match entity {
 			MoveEntity::Repo { old_path, new_path } => {
 				match init_gitopolis().move_repo(old_path, new_path) {
-					Ok(_) => {
-						eprintln!("Moved {} to {}", old_path, new_path);
+					Ok(resolved_path) => {
+						eprintln!("Moved {} to {}", old_path, resolved_path);
 					}
 					Err(error) => {
 						eprintln!("Error: {}", error.message());
