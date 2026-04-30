@@ -32,6 +32,31 @@ cargo install gitopolis
 
 This will download the latest release crates.io, build and install it to `~/.cargo/bin/`.
 
+### Nix flake
+
+A Nix flake wrapping the prebuilt GitHub release binaries lives on the [`nix` branch](https://github.com/timabell/gitopolis/tree/nix) of this repo. It's auto-updated whenever a release is published.
+
+Run without installing:
+
+```sh
+nix run github:timabell/gitopolis/nix -- --help
+```
+
+Install into your profile:
+
+```sh
+nix profile install github:timabell/gitopolis/nix
+```
+
+Reference from a NixOS / home-manager flake:
+
+```nix
+inputs.gitopolis.url = "github:timabell/gitopolis/nix";
+# then: gitopolis.packages.${pkgs.system}.default
+```
+
+Supported systems: `x86_64-linux` (musl-static, runs on NixOS without patching), `x86_64-darwin`, `aarch64-darwin`.
+
 ### Arch linux
 
 [Gitopolis is in the AUR](https://aur.archlinux.org/packages/gitopolis), so you can install it with `paru` or `yay` or your AUR helper of choice.
