@@ -10,6 +10,10 @@ Manage multiple git repositories with ease.
 
 To get an idea what a real use might look like take a look at this blog post: ["Using Gitopolis to Manage Multiple Git Repositories"](https://0x5.uk/2025/10/25/using-gitopolis-to-manage-multiple-git-repositories/)
 
+Or watch the demo video:
+
+[![demo vid](doc/vid-thumbnail.png)](https://www.youtube.com/watch?v=uWX6cbDJoBQ)
+
 ## Installation
 
 ### Download binary release from github
