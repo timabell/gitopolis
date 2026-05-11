@@ -11,7 +11,7 @@ use std::io::Write;
 
 /// A CLI tool for managing multiple git repositories
 /// License: A-GPL v3.0
-/// Repo: https://github.com/rustworkshop/gitopolis
+/// Repo: https://github.com/timabell/gitopolis
 #[derive(Parser)]
 #[clap(author, version, subcommand_required = true, verbatim_doc_comment)]
 struct Args {

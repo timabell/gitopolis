@@ -21,7 +21,7 @@ fn help() {
 fn add_glob() {
 	// Linux has shell globbing built in, but that's not available for windows/cmd so "add *" is passed
 	// in without being expanded, resulting in an error instead of adding everything.
-	// https://github.com/rustworkshop/gitopolis/issues/122
+	// https://github.com/timabell/gitopolis/issues/122
 	let temp = temp_folder();
 	create_git_repo(&temp, "first_git_folder", "git://example.org/test_url");
 	create_git_repo(&temp, "second_git_folder", "git://example.org/test_url2");
@@ -2120,7 +2120,7 @@ fn tag_remove_repo_not_found() {
 #[test]
 fn exec_displays_quoted_args() {
 	// Test that exec command display adds quotes for arguments with spaces
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/86
+	// Issue: https://github.com/timabell/gitopolis/issues/86
 	let temp = temp_folder();
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 
@@ -2135,7 +2135,7 @@ fn exec_displays_quoted_args() {
 #[test]
 fn clone_with_url() {
 	// Test cloning a repository from a URL and automatically adding it to gitopolis
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Issue: https://github.com/timabell/gitopolis/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo in a subdirectory
@@ -2175,7 +2175,7 @@ fn clone_with_url() {
 #[test]
 fn clone_with_url_extracts_folder_name() {
 	// Test that clone extracts the correct folder name from various URL formats
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Issue: https://github.com/timabell/gitopolis/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo with .git in the name to test extraction
@@ -2209,7 +2209,7 @@ fn clone_with_url_extracts_folder_name() {
 #[test]
 fn clone_with_url_and_target_dir() {
 	// Test cloning with a custom target directory, like git clone does
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Issue: https://github.com/timabell/gitopolis/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo in a subdirectory
@@ -2251,7 +2251,7 @@ fn clone_with_url_and_target_dir() {
 #[test]
 fn move_repo() {
 	// Test basic move operation
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/timabell/gitopolis/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "old_location", "git://example.org/test_url");
 
@@ -2294,7 +2294,7 @@ url = \"git://example.org/test_url\"
 #[test]
 fn move_repo_with_nested_path() {
 	// Test move operation with nested source and target paths, creating parent directories
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/timabell/gitopolis/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "services/backend", "git://example.org/test_url");
 
@@ -2332,7 +2332,7 @@ url = \"git://example.org/test_url\"
 #[test]
 fn move_repo_preserves_tags() {
 	// Test that move preserves tags
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/timabell/gitopolis/issues/157
 	let temp = temp_folder();
 	add_a_repo_with_tags(
 		&temp,
@@ -2454,7 +2454,7 @@ url = \"git://example.org/test_url\"
 #[test]
 fn move_repo_not_found() {
 	// Test that move fails when repo doesn't exist
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/timabell/gitopolis/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "existing_repo", "git://example.org/test_url");
 
