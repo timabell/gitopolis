@@ -17,7 +17,7 @@ jobs:
     outputs:
       rust-version: ${{ steps.rust-version.outputs.RUST_VERSION }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Get rust version from .tool-versions
       id: rust-version
       run: echo "RUST_VERSION=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
@@ -25,7 +25,7 @@ jobs:
     needs: get-rust-version
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ needs.get-rust-version.outputs.rust-version }}
@@ -40,7 +40,7 @@ jobs:
     needs: get-rust-version
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ needs.get-rust-version.outputs.rust-version }}
@@ -74,27 +74,27 @@ jobs:
           binary_name: gitopolis
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ needs.get-rust-version.outputs.rust-version }}
         targets: ${{ matrix.target }}
     - name: Cache Cargo registry
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/.cargo/registry/index
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-registry-
     - name: Cache Cargo dependencies
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/.cargo/registry/cache
         key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-deps-
     - name: Cache build artifacts
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: target
         key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
