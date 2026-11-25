@@ -1,9 +1,12 @@
 #!/bin/sh
 # Preview git-cliff output
 
+SCRIPT_DIR="$(dirname "$0")"
+
 case "$1" in
   --preview)
-    git cliff --config .github/cliff.toml --bump --unreleased
+    NEXT_TAG="v$("$SCRIPT_DIR/.github/workflows/next-version.sh")"
+    git cliff --config .github/cliff.toml --unreleased --tag "$NEXT_TAG"
     ;;
   "")
     git cliff --config .github/cliff.toml --latest
