@@ -62,4 +62,5 @@ Release notes are generated from commit messages by git-cliff (`.github/cliff.to
 - Internal-only changes (lint/clippy/rustfmt fixes, Cargo.toml metadata tidy-ups, dev tooling, agent guidance, refactors invisible to users) get **no prefix** — just a plain imperative message, e.g. `Fix new clippy lints`.
 - `ci:` is the exception: it may be used for CI changes because git-cliff skips it.
 - Don't invent other prefixes like `style:`.
+- Releases bump the patch version by default. A `bump: minor` / `bump: major` footer line in any commit since the last tag bumps that instead; any `bump:` footer (including `bump: patch`) forces a release even with no release-worthy commits. Only add one when the user asks.
 - Check the result with `./release-notes.sh --preview` before pushing.
