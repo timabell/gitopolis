@@ -5,20 +5,20 @@
 
   outputs = { self, nixpkgs }:
     let
-      version = "1.17.1";
+      version = "1.17.4";
 
       assets = {
         x86_64-linux = {
           name = "gitopolis-linux-x86_64.tar.gz";
-          sha256 = "5f3a5229cc3556843cae7ab0b9a2d5bb2f1a7d0523040e389694722ddcb7e159";
+          sha256 = "73403b09594a21af21144f8956f3d0097516fb41c441c932697769cc5d239a5e";
         };
         x86_64-darwin = {
           name = "gitopolis-macos-x86_64.tar.gz";
-          sha256 = "5e75092af69c590ba6c3b5fc88402a2194ef208ebebd6f735f972859a87e4d42";
+          sha256 = "feee03312dc9592f13f8b448c39b7a772f528d1d6b2db949c4b04ed6d1328e1f";
         };
         aarch64-darwin = {
           name = "gitopolis-macos-aarch64.tar.gz";
-          sha256 = "6d19de283cb58f7f815ab3847062b8cdbd2205930bb762e02a9991288b7c5e73";
+          sha256 = "580dfe464687175a6617c751a7f96519534c362e05a584cda1709a700b7c1340";
         };
       };
 
