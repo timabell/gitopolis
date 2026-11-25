@@ -2,15 +2,11 @@
 # Preview git-cliff output
 
 SCRIPT_DIR="$(dirname "$0")"
-BUMP_TYPE=$("$SCRIPT_DIR/.github/workflows/detect-bump.sh")
-BUMP_ARG=""
-if [ -n "$BUMP_TYPE" ]; then
-  BUMP_ARG="--bump $BUMP_TYPE"
-fi
 
 case "$1" in
   --preview)
-    git cliff --config .github/cliff.toml $BUMP_ARG --unreleased
+    NEXT_TAG="v$("$SCRIPT_DIR/.github/workflows/next-version.sh")"
+    git cliff --config .github/cliff.toml --unreleased --tag "$NEXT_TAG"
     ;;
   "")
     git cliff --config .github/cliff.toml --latest
