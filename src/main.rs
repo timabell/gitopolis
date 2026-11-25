@@ -123,11 +123,14 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum MoveEntity {
-	/// Move a repository to a new location
+	/// Move a repository to a new location. Works like unix `mv`:
+	/// if new_path is an existing folder or ends with a slash the repo is moved into it (keeping its name),
+	/// otherwise the repo is moved/renamed to new_path.
+	#[clap(verbatim_doc_comment)]
 	Repo {
 		/// Current path of the repository
 		old_path: String,
-		/// New path for the repository
+		/// New path for the repository, or a folder to move it into (existing, or ending with a slash)
 		new_path: String,
 	},
 }

@@ -2557,6 +2557,84 @@ url = \"git://example.org/test_url\"
 }
 
 #[test]
+fn move_repo_into_existing_folder_without_slash() {
+	// https://github.com/timabell/gitopolis/issues/254 - existing dir without trailing slash behaves like `mv`
+	let temp = temp_folder();
+	add_a_repo(&temp, "my_repo", "git://example.org/test_url");
+	std::fs::create_dir_all(temp.path().join("existing_dir")).unwrap();
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "my_repo", "existing_dir"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains(
+			"Moved my_repo to existing_dir/my_repo",
+		));
+
+	assert!(!temp.path().join("my_repo").exists());
+	assert!(temp.path().join("existing_dir/my_repo/.git").exists());
+	assert!(read_gitopolis_state_toml(&temp).contains("path = \"existing_dir/my_repo\""));
+}
+
+#[test]
+fn move_repo_refuses_to_overwrite() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "my_repo", "git://example.org/test_url");
+	std::fs::create_dir_all(temp.path().join("dst/my_repo")).unwrap();
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "my_repo", "dst/"])
+		.assert()
+		.failure()
+		.code(1)
+		.stderr(predicate::str::contains(
+			"Destination 'dst/my_repo' already exists",
+		));
+
+	assert!(temp.path().join("my_repo/.git").exists());
+	assert!(read_gitopolis_state_toml(&temp).contains("path = \"my_repo\""));
+}
+
+#[test]
+fn move_repo_into_itself_errors() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "my_repo", "git://example.org/test_url");
+
+	for target in ["my_repo", "my_repo/", "my_repo/sub"] {
+		gitopolis_executable()
+			.current_dir(&temp)
+			.args(vec!["move", "repo", "my_repo", target])
+			.assert()
+			.failure()
+			.code(1)
+			.stderr(predicate::str::contains("my_repo"))
+			.stderr(predicate::str::contains("panicked").not());
+	}
+	assert!(temp.path().join("my_repo/.git").exists());
+	assert!(read_gitopolis_state_toml(&temp).contains("path = \"my_repo\""));
+}
+
+#[test]
+fn move_repo_case_only_rename() {
+	// On case-insensitive filesystems (macOS/Windows default) "myrepo" already "exists" as the source,
+	// which must be treated as a rename, not a move into itself.
+	let temp = temp_folder();
+	add_a_repo(&temp, "MyRepo", "git://example.org/test_url");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["move", "repo", "MyRepo", "myrepo"])
+		.assert()
+		.success()
+		.stderr(predicate::str::contains("Moved MyRepo to myrepo"));
+
+	assert!(temp.path().join("myrepo/.git").exists());
+	assert!(read_gitopolis_state_toml(&temp).contains("path = \"myrepo\""));
+}
+
+#[test]
 fn move_repo_not_found() {
 	// Test that move fails when repo doesn't exist
 	// Issue: https://github.com/timabell/gitopolis/issues/157

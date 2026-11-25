@@ -357,7 +357,14 @@ impl Gitopolis {
 	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<String, GitopolisError> {
 		let mut repos = self.load()?;
 		let normalized_old = normalize_folder(old_path.to_string());
-		let is_dir_target = new_path.ends_with('/') || new_path.ends_with('\\');
+		// Like unix `mv`: a trailing slash or an existing directory means "move into this folder",
+		// otherwise it's the new name/path for the repo. https://github.com/timabell/gitopolis/issues/254
+		// An existing directory that is actually the repo itself (e.g. a case-only rename `MyRepo` -> `myrepo`
+		// on a case-insensitive filesystem) is a rename, not a move into.
+		let target_is_source = same_path(&normalized_old, new_path);
+		let is_dir_target = new_path.ends_with('/')
+			|| new_path.ends_with('\\')
+			|| (std::path::Path::new(new_path).is_dir() && !target_is_source);
 		let normalized_new = if is_dir_target {
 			let base = std::path::Path::new(&normalized_old)
 				.file_name()
@@ -378,6 +385,28 @@ impl Gitopolis {
 				message: format!("Repo '{}' not found", normalized_old),
 			})?
 			.clone();
+
+		if normalized_new == normalized_old {
+			return Err(StateError {
+				message: format!(
+					"Repo '{}' is already at '{}'",
+					normalized_old, normalized_new
+				),
+			});
+		}
+		if std::path::Path::new(&normalized_new).starts_with(&normalized_old) {
+			return Err(StateError {
+				message: format!(
+					"Can't move repo '{}' into itself ('{}')",
+					normalized_old, normalized_new
+				),
+			});
+		}
+		if std::path::Path::new(&normalized_new).exists() && !target_is_source {
+			return Err(StateError {
+				message: format!("Destination '{}' already exists", normalized_new),
+			});
+		}
 
 		// Create parent directories if they don't exist
 		if let Some(parent) = std::path::Path::new(&normalized_new).parent() {
@@ -430,6 +459,14 @@ fn parse(state_toml: &str) -> Result<Repos, GitopolisError> {
 		.remove("repos") // [re]move this rather than taking a ref so that ownership moves with it (borrow checker)
 		.expect("Failed to read 'repos' entry from state TOML");
 	Ok(Repos::new_with_repos(repos))
+}
+
+/// True if both paths exist and refer to the same file/folder (handles case-insensitive filesystems)
+fn same_path(a: &str, b: &str) -> bool {
+	match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+		(Ok(a), Ok(b)) => a == b,
+		_ => false,
+	}
 }
 
 fn normalize_folders(repo_folders: &[String]) -> Vec<String> {

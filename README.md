@@ -226,6 +226,16 @@ Move a repository to a new location and update the configuration:
 gitopolis move repo old-path new-path
 ```
 
+This works like unix `mv`:
+
+```sh
+gitopolis move repo my-repo new-name       # rename my-repo to new-name
+gitopolis move repo my-repo archive/       # move into archive/my-repo (archive/ created if needed)
+gitopolis move repo my-repo existing-dir   # existing-dir already exists, so becomes existing-dir/my-repo
+```
+
+It refuses to overwrite anything that already exists at the destination.
+
 ### Managing multiple remotes
 
 Gitopolis supports multiple git remotes per repository. Sync remotes from your git repositories into the `.gitopolis.toml` file:
