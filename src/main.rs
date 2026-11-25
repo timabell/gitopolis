@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use gitopolis::exec::exec;
 use gitopolis::git::GitImpl;
-use gitopolis::gitopolis::Gitopolis;
+use gitopolis::gitopolis::{Gitopolis, GitopolisError};
 use gitopolis::repos::Repo;
 use gitopolis::storage::StorageImpl;
 use gitopolis::tag_filter::TagFilter;
@@ -379,8 +379,24 @@ fn init_gitopolis() -> Gitopolis {
 }
 
 fn add(repo_folders: Vec<String>) {
+	let mut skipped_count = 0;
 	for repo_folder in repo_folders {
-		init_gitopolis().add(repo_folder).expect("Add failed");
+		match init_gitopolis().add(repo_folder.to_owned()) {
+			Ok(()) => {}
+			// Couldn't read it as a git repo (e.g. a plain folder or file matched by `add *`) - warn and carry on with the rest
+			Err(GitopolisError::GitError { message }) => {
+				eprintln!("Skipped {repo_folder}: {message}");
+				skipped_count += 1;
+			}
+			Err(error) => {
+				eprintln!("Error: {}", error.message());
+				std::process::exit(1);
+			}
+		}
+	}
+	if skipped_count > 0 {
+		eprintln!("{skipped_count} folder(s) skipped (see above for why)");
+		std::process::exit(1);
 	}
 }
 

@@ -97,6 +97,55 @@ url = \"git://example.org/test_url2\"
 }
 
 #[test]
+fn add_skips_non_git_folders() {
+	// https://github.com/timabell/gitopolis/issues/282
+	let temp = temp_folder();
+	create_git_repo(&temp, "repo_a", "git://example.org/a");
+	fs::create_dir_all(temp.path().join("not_a_repo")).expect("failed to create folder");
+	fs::write(temp.path().join("some_file.txt"), "hello").expect("failed to write file");
+	create_git_repo(&temp, "repo_b", "git://example.org/b");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"add",
+			"repo_a",
+			"not_a_repo",
+			"some_file.txt",
+			"repo_b",
+		])
+		.assert()
+		.failure()
+		.code(1)
+		.stderr(predicate::str::contains("Added repo_a\n"))
+		.stderr(predicate::str::contains("Skipped not_a_repo: "))
+		.stderr(predicate::str::contains("Skipped some_file.txt: "))
+		.stderr(predicate::str::contains("Added repo_b\n"))
+		.stderr(predicate::str::contains(
+			"2 folder(s) skipped (see above for why)",
+		))
+		.stderr(predicate::str::contains("panicked").not());
+
+	let expected_toml = "[[repos]]
+path = \"repo_a\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/a\"
+
+[[repos]]
+path = \"repo_b\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/b\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
 fn remove() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
