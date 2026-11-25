@@ -439,7 +439,7 @@ url = \"example_url\"
 		.failure()
 		.code(1)
 		.stdout(expected_stdout)
-		.stderr("1 repos skipped\n");
+		.stderr("1 repos skipped:\n  missing_git_folder\n");
 }
 
 #[test]
@@ -539,7 +539,9 @@ fn exec_non_zero() {
 Command exited with code 1
 ls: non-existent: No such file or directory
 Command exited with code 1
-2 commands exited with non-zero status code
+2 commands exited with non-zero status code:
+  some_git_folder
+  some_other_git_folder
 "
 		}
 		OperatingSystem::Other => {
@@ -547,7 +549,9 @@ Command exited with code 1
 Command exited with code 2
 ls: cannot access \'non-existent\': No such file or directory
 Command exited with code 2
-2 commands exited with non-zero status code
+2 commands exited with non-zero status code:
+  some_git_folder
+  some_other_git_folder
 "
 		}
 	};
@@ -641,7 +645,7 @@ fn exec_oneline_non_zero() {
 		.failure()
 		.code(1)
 		.stdout(expected_stdout)
-		.stderr("2 commands exited with non-zero status code\n");
+		.stderr("2 commands exited with non-zero status code:\n  repo_a\n  repo_b\n");
 }
 
 #[test]
@@ -674,7 +678,7 @@ url = \"git://example.org/test_url\"
 		.failure()
 		.code(1)
 		.stdout("missing_repo\tRepo folder missing, skipped.\nrepo_a\thello\n")
-		.stderr("1 repos skipped\n");
+		.stderr("1 repos skipped:\n  missing_repo\n");
 }
 
 #[test]
@@ -708,7 +712,7 @@ fn exec_skip_blank_oneline_shows_failures() {
 		.failure()
 		.code(1)
 		.stdout("repo_a\t\nrepo_b\t\n")
-		.stderr("2 commands exited with non-zero status code\n");
+		.stderr("2 commands exited with non-zero status code:\n  repo_a\n  repo_b\n");
 }
 
 #[test]
@@ -759,7 +763,7 @@ fn exec_skip_blank_shows_failures() {
 		.stderr(
 			"Command exited with code 1\n\
 			 Command exited with code 1\n\
-			 2 commands exited with non-zero status code\n",
+			 2 commands exited with non-zero status code:\n  repo_a\n  repo_b\n",
 		);
 }
 

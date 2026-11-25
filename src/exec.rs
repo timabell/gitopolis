@@ -33,8 +33,8 @@ pub fn exec(
 	skip_blank: bool,
 	timeout: Option<Duration>,
 ) {
-	let mut error_count = 0;
-	let mut skipped_count = 0;
+	let mut failed_repos: Vec<&str> = vec![];
+	let mut skipped_repos: Vec<&str> = vec![];
 	for repo in &repos {
 		if !exists(&repo.path) {
 			if oneline {
@@ -43,7 +43,7 @@ pub fn exec(
 				println!();
 				println!("🏢 {}> Repo folder missing, skipped.", repo.path);
 			}
-			skipped_count += 1;
+			skipped_repos.push(&repo.path);
 			continue;
 		}
 		if oneline {
@@ -57,7 +57,7 @@ pub fn exec(
 				None => println!("{}\t", repo.path),
 			}
 			if !success {
-				error_count += 1;
+				failed_repos.push(&repo.path);
 			}
 		} else {
 			let (exit_status, had_output) = repo_exec(&repo.path, &exec_args, skip_blank, timeout)
@@ -66,20 +66,37 @@ pub fn exec(
 				continue;
 			}
 			if !exit_status.success() {
-				error_count += 1
+				failed_repos.push(&repo.path);
 			}
 			println!();
 		}
 	}
-	if error_count > 0 || skipped_count > 0 {
-		if error_count > 0 {
-			eprintln!("{error_count} commands exited with non-zero status code");
-		}
-		if skipped_count > 0 {
-			eprintln!("{skipped_count} repos skipped");
-		}
+	if !failed_repos.is_empty() || !skipped_repos.is_empty() {
+		eprint!("{}", summary(&failed_repos, &skipped_repos));
 		std::process::exit(1);
 	}
+}
+
+/// Summary of which repos failed / were skipped, so you don't have to scroll back through a long
+/// list of output to find them. https://github.com/timabell/gitopolis/issues/280
+fn summary(failed_repos: &[&str], skipped_repos: &[&str]) -> String {
+	let mut out = String::new();
+	if !failed_repos.is_empty() {
+		out.push_str(&format!(
+			"{} commands exited with non-zero status code:\n",
+			failed_repos.len()
+		));
+		for repo in failed_repos {
+			out.push_str(&format!("  {repo}\n"));
+		}
+	}
+	if !skipped_repos.is_empty() {
+		out.push_str(&format!("{} repos skipped:\n", skipped_repos.len()));
+		for repo in skipped_repos {
+			out.push_str(&format!("  {repo}\n"));
+		}
+	}
+	out
 }
 
 fn exists(repo_path: &String) -> bool {
@@ -581,6 +598,22 @@ fn read_to_string_thread<R: Read + Send + 'static>(pipe: Option<R>) -> JoinHandl
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_summary_failed_and_skipped() {
+		assert_eq!(
+			summary(&["repo_a", "repo_b"], &["missing"]),
+			"2 commands exited with non-zero status code:\n  repo_a\n  repo_b\n1 repos skipped:\n  missing\n"
+		);
+	}
+
+	#[test]
+	fn test_summary_failed_only() {
+		assert_eq!(
+			summary(&["repo_a"], &[]),
+			"1 commands exited with non-zero status code:\n  repo_a\n"
+		);
+	}
 
 	#[test]
 	fn test_format_args_no_quoting_needed() {
