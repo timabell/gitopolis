@@ -54,3 +54,12 @@ Gitopolis is a CLI tool for managing multiple git repositories, built in Rust wi
 - Windows has special handling for glob expansion (not done by shell)
 - Supports multiple git remotes per repository
 - Rust version is pinned in `.tool-versions` and used by CI workflows
+## Commit Messages
+
+Release notes are generated from commit messages by git-cliff (`.github/cliff.toml`); any commit with a conventional prefix it recognises (`feat:`, `fix:`, `perf:`, `security:`, `doc:`, `refactor:`, `chore:` …) ends up in the release notes.
+
+- **Only use a prefix for changes users of gitopolis would care about** (new features, bug fixes, user-facing docs, dependency/rust upgrades that ship in the binary).
+- Internal-only changes (lint/clippy/rustfmt fixes, Cargo.toml metadata tidy-ups, dev tooling, agent guidance, refactors invisible to users) get **no prefix** — just a plain imperative message, e.g. `Fix new clippy lints`.
+- `ci:` is the exception: it may be used for CI changes because git-cliff skips it.
+- Don't invent other prefixes like `style:`.
+- Check the result with `./release-notes.sh --preview` before pushing.
