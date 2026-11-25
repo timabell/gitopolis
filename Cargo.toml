@@ -4,7 +4,6 @@ version = "0.0.0-git"
 edition = "2021"
 authors = ["Tim Abell <t@0x5.uk>"]
 description = "Manage multiple git repositories - CLI tool - run commands, clone, and organize repos with tags"
-homepage = "https://github.com/timabell/gitopolis"
 repository = "https://github.com/timabell/gitopolis"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -14,14 +13,13 @@ categories = ["command-line-utilities", "development-tools"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.6.1", features = ["derive"] }
-env_logger = "0.11.10"
-git2 = "0.20.4"
-log = "0.4.29"
-serde = "1.0.228"
-serde_derive = "1.0.228"
-toml = "1.1.2"
-openssl = { version = "0.10", features = ["vendored"] }
+clap = { version = "4.6.10", features = ["derive"] }
+env_logger = "0.11.12"
+git2 = "0.21.0"
+log = "0.4.35"
+serde = "1.0.229"
+serde_derive = "1.0.229"
+toml = "1.2.3"
 wild = "2.2.1"
 
 [dev-dependencies]
@@ -32,5 +30,4 @@ tempfile = "3.27.0"
 [package.metadata.cargo-machete]
 ignored = [
     "serde",     # Used via serde_derive macro
-    "openssl",   # Required by git2 for SSL support
 ]

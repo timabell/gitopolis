@@ -94,8 +94,7 @@ impl Repos {
 	fn add_repo(&mut self, repo: Repo) {
 		let repo_folder = repo.path.clone();
 		self.repos.push(repo);
-		self.repos
-			.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+		self.repos.sort_by_key(|a| a.path.to_lowercase());
 		info!("Added {repo_folder}");
 	}
 
