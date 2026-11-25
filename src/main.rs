@@ -36,10 +36,8 @@ enum Commands {
 	},
 	/// Show list of repos gitopolis knows about. Just names by default, "--long" for human-readable tags and remotes, "--tab" for machine-readable tab separated tags and remotes.
 	List {
-		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
-		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
-		#[arg(short, long)]
-		tag: Vec<String>,
+		#[command(flatten)]
+		filter: FilterArgs,
 		/// Multi-line human-readable output showing tags and remotes of each repo (like `show`)
 		#[clap(short, long, conflicts_with = "tab")]
 		long: bool,
@@ -49,10 +47,8 @@ enum Commands {
 	},
 	/// Run any shell command. E.g. `gitopolis exec -- git pull`. Double-dash separator indicates end of gitopolis's arguments and prevents arguments to your commands being interpreted by gitopolis.
 	Exec {
-		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
-		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
-		#[arg(short, long)]
-		tag: Vec<String>,
+		#[command(flatten)]
+		filter: FilterArgs,
 		#[arg(long)]
 		oneline: bool,
 		/// Don't output repo name when no stdout/stderr output produced
@@ -93,6 +89,12 @@ enum Commands {
 		/// multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
 		#[arg(short, long)]
 		tag: Vec<String>,
+		/// When cloning from existing config, don't clone these repos (comma-separated and/or repeated)
+		#[arg(long)]
+		exclude: Vec<String>,
+		/// When cloning from existing config, don't clone repos with any of these tags (comma-separated and/or repeated)
+		#[arg(long)]
+		exclude_tag: Vec<String>,
 	},
 	/// Sync remotes between git repositories and .gitopolis.toml configuration
 	Sync {
@@ -105,10 +107,8 @@ enum Commands {
 		/// Show what would be changed without making any modifications
 		#[arg(long)]
 		dry_run: bool,
-		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
-		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
-		#[arg(short, long)]
-		tag: Vec<String>,
+		#[command(flatten)]
+		filter: FilterArgs,
 	},
 	/// Show detailed information about a repository including tags and remotes
 	Show {
@@ -125,6 +125,27 @@ enum Commands {
 		#[clap(subcommand)]
 		entity: RenameEntity,
 	},
+}
+
+/// Options for choosing which repos a command applies to
+#[derive(clap::Args)]
+struct FilterArgs {
+	/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
+	/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
+	#[arg(short, long)]
+	tag: Vec<String>,
+	/// Exclude these repos (comma-separated and/or repeated, e.g. "--exclude repo1,repo2 --exclude repo3")
+	#[arg(long)]
+	exclude: Vec<String>,
+	/// Exclude repos that have ANY of these tags (comma-separated and/or repeated, e.g. "--exclude-tag archived,slow")
+	#[arg(long)]
+	exclude_tag: Vec<String>,
+}
+
+impl FilterArgs {
+	fn to_filter(&self) -> TagFilter {
+		TagFilter::from_cli_args(&self.tag).with_exclusions(&self.exclude, &self.exclude_tag)
+	}
 }
 
 #[derive(Subcommand)]
@@ -168,12 +189,8 @@ fn main() {
 				.remove(repo_folders)
 				.expect("Failed to remove repository");
 		}
-		Some(Commands::List {
-			tag: tag_args,
-			long,
-			tab,
-		}) => {
-			let filter = TagFilter::from_cli_args(tag_args);
+		Some(Commands::List { filter, long, tab }) => {
+			let filter = filter.to_filter();
 			let format = if *long {
 				ListFormat::Long
 			} else if *tab {
@@ -192,15 +209,28 @@ fn main() {
 			url,
 			target_dir,
 			tag: tag_args,
-		}) => clone(url, target_dir, tag_args),
+			exclude,
+			exclude_tag,
+		}) => {
+			if url.is_some() && !(exclude.is_empty() && exclude_tag.is_empty()) {
+				eprintln!("Error: --exclude and --exclude-tag can only be used when cloning from existing config (no url)");
+				std::process::exit(1);
+			}
+			clone(
+				url,
+				target_dir,
+				tag_args,
+				TagFilter::from_cli_args(tag_args).with_exclusions(exclude, exclude_tag),
+			)
+		}
 		Some(Commands::Exec {
-			tag: tag_args,
+			filter,
 			oneline,
 			skip_blank,
 			timeout,
 			exec_args,
 		}) => {
-			let filter = TagFilter::from_cli_args(tag_args);
+			let filter = filter.to_filter();
 			exec(
 				exec_args.to_owned(),
 				init_gitopolis()
@@ -265,9 +295,9 @@ fn main() {
 			read_remotes,
 			write_remotes,
 			dry_run,
-			tag: tag_args,
+			filter,
 		}) => {
-			let filter = TagFilter::from_cli_args(tag_args);
+			let filter = filter.to_filter();
 			if *read_remotes {
 				init_gitopolis()
 					.sync_read_remotes(&filter, *dry_run)
@@ -345,14 +375,19 @@ fn main() {
 ///
 /// * `url` - Optional git URL to clone from
 /// * `target_dir` - Optional target directory name (only used when URL is provided)
-/// * `tag_args` - Tag arguments for either applying (with URL) or filtering (without URL)
-fn clone(url: &Option<String>, target_dir: &Option<String>, tag_args: &[String]) {
+/// * `tag_args` - Tags to apply (with URL)
+/// * `filter` - Tag/exclusion filter (without URL)
+fn clone(
+	url: &Option<String>,
+	target_dir: &Option<String>,
+	tag_args: &[String],
+	filter: TagFilter,
+) {
 	match url {
 		Some(git_url) => clone_from_url(git_url, target_dir, tag_args),
 		None => {
 			// Clone from .gitopolis.toml with tag filtering
 			let gitopolis = init_gitopolis();
-			let filter = TagFilter::from_cli_args(tag_args);
 			gitopolis.clone(
 				gitopolis
 					.list(&filter)

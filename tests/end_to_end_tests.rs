@@ -3650,3 +3650,162 @@ fn exec_timeout_zero_means_no_limit() {
 		.success()
 		.stdout("repo_a\thi\n");
 }
+
+// https://github.com/timabell/gitopolis/issues/4
+#[test]
+fn list_with_exclude_and_exclude_tag() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo_a", "git://example.org/a", vec!["foo"]);
+	add_a_repo_with_tags(&temp, "repo_b", "git://example.org/b", vec!["foo"]);
+	add_a_repo_with_tags(
+		&temp,
+		"repo_c",
+		"git://example.org/c",
+		vec!["foo", "archived"],
+	);
+	add_a_repo_with_tags(&temp, "repo_d", "git://example.org/d", vec!["slow"]);
+	add_a_repo(&temp, "repo_e", "git://example.org/e");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["list", "--exclude", "repo_b/"])
+		.assert()
+		.success()
+		.stdout("repo_a\nrepo_c\nrepo_d\nrepo_e\n");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["list", "--exclude-tag", "archived,slow"])
+		.assert()
+		.success()
+		.stdout("repo_a\nrepo_b\nrepo_e\n");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"list",
+			"--tag",
+			"foo",
+			"--exclude",
+			"repo_a",
+			"--exclude-tag",
+			"archived",
+		])
+		.assert()
+		.success()
+		.stdout("repo_b\n");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"list",
+			"--exclude",
+			"repo_a,repo_b",
+			"--exclude",
+			"repo_c",
+			"--exclude-tag",
+			"slow",
+		])
+		.assert()
+		.success()
+		.stdout("repo_e\n");
+}
+
+#[test]
+fn exec_with_exclude_tag() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "repo_a", "git://example.org/a", vec!["foo"]);
+	add_a_repo_with_tags(&temp, "repo_b", "git://example.org/b", vec!["disabled"]);
+	add_a_repo(&temp, "repo_c", "git://example.org/c");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"exec",
+			"--oneline",
+			"--exclude-tag",
+			"disabled",
+			"--exclude",
+			"repo_c",
+			"--",
+			"echo",
+			"hi",
+		])
+		.assert()
+		.success()
+		.stdout("repo_a\thi\n");
+}
+
+#[test]
+fn clone_with_exclusions() {
+	let temp = temp_folder();
+	create_local_repo(&temp, "source1");
+	create_local_repo(&temp, "source2");
+	create_local_repo(&temp, "source3");
+
+	let initial_state_toml = "[[repos]]
+path = \"repo1\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"source1\"
+
+[[repos]]
+path = \"repo2\"
+tags = [\"huge\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"source2\"
+
+[[repos]]
+path = \"repo3\"
+tags = []
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"source3\"
+";
+	write_gitopolis_state_toml(&temp, initial_state_toml);
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["clone", "--exclude-tag", "huge", "--exclude", "repo3"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("🏢 repo1> Cloning source1"))
+		.stdout(predicate::str::contains("repo2").not())
+		.stdout(predicate::str::contains("repo3").not());
+
+	assert!(temp.path().join("repo1").exists());
+	assert!(!temp.path().join("repo2").exists());
+	assert!(!temp.path().join("repo3").exists());
+}
+
+#[test]
+fn clone_url_with_exclusions_errors() {
+	gitopolis_executable()
+		.args(vec!["clone", "--exclude", "foo", "git://example.org/repo"])
+		.assert()
+		.failure()
+		.code(1)
+		.stderr(predicate::str::contains(
+			"--exclude and --exclude-tag can only be used when cloning from existing config",
+		));
+}
+
+#[test]
+fn exclude_unknown_repo_warns() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/a");
+	add_a_repo(&temp, "repo_b", "git://example.org/b");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["list", "--exclude", "repo_b,repo_typo"])
+		.assert()
+		.success()
+		.stdout("repo_a\n")
+		.stderr("Warning: --exclude 'repo_typo' doesn't match any repo\n");
+}

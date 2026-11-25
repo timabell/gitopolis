@@ -93,10 +93,15 @@ impl Gitopolis {
 	pub fn list(&self, filter: &TagFilter) -> Result<Vec<Repo>, GitopolisError> {
 		let repos = self.load()?;
 
+		let known_paths: Vec<String> = repos.as_vec().iter().map(|r| r.path.clone()).collect();
+		for unknown in filter.unknown_excluded_repos(&known_paths) {
+			eprintln!("Warning: --exclude '{unknown}' doesn't match any repo");
+		}
+
 		let mut result: Vec<Repo> = repos
 			.into_vec()
 			.into_iter()
-			.filter(|repo| filter.matches(&repo.tags))
+			.filter(|repo| filter.matches_repo(&repo.path, &repo.tags))
 			.collect();
 
 		result.sort_by_key(|a| a.path.to_lowercase());

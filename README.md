@@ -203,6 +203,19 @@ gitopolis clone --tag production,critical --tag staging,critical
 
 This allows for flexible repository filtering based on combinations of characteristics.
 
+#### Excluding repos
+
+`list`, `exec`, `sync` and `clone` (from config) also take `--exclude` (repo paths) and `--exclude-tag` (tags), both comma-separated and/or repeated. Exclusions are applied after any `--tag` filter, and a repo with *any* of the excluded tags is left out.
+
+```sh
+# Pull everything except one slow repo and anything tagged archived
+gitopolis exec --exclude huge-monorepo --exclude-tag archived -- git pull
+
+# Tag repos you want to "disable" without removing them from gitopolis
+gitopolis tag disabled old-thing other-old-thing
+gitopolis exec --exclude-tag disabled -- git status
+```
+
 ### Viewing repository information
 
 Show the recorded information about a specific repository:
