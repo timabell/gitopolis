@@ -12,10 +12,10 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool, skip_blank:
 	for repo in &repos {
 		if !exists(&repo.path) {
 			if oneline {
-				println!("{}\tRepo folder missing, skipped.", &repo.path);
+				println!("{}\tRepo folder missing, skipped.", repo.path);
 			} else {
 				println!();
-				println!("🏢 {}> Repo folder missing, skipped.", &repo.path);
+				println!("🏢 {}> Repo folder missing, skipped.", repo.path);
 			}
 			skipped_count += 1;
 			continue;
@@ -27,8 +27,8 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool, skip_blank:
 				continue;
 			}
 			match output {
-				Some(output_text) => println!("{}\t{}", &repo.path, output_text),
-				None => println!("{}\t", &repo.path),
+				Some(output_text) => println!("{}\t{}", repo.path, output_text),
+				None => println!("{}\t", repo.path),
 			}
 			if !success {
 				error_count += 1;

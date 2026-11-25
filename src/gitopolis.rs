@@ -99,7 +99,7 @@ impl Gitopolis {
 			.filter(|repo| filter.matches(&repo.tags))
 			.collect();
 
-		result.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+		result.sort_by_key(|a| a.path.to_lowercase());
 		Ok(result)
 	}
 	pub fn read(&self) -> Result<Repos, GitopolisError> {
