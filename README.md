@@ -147,6 +147,15 @@ This means:
 - Git commands won't pause for pagers (like `less` for `git log`) - this is intentional, but you can pipe the output of gitopolis as a whole into less - e.g.  `gitopolis exec -- git log -n 1 | less`
 - Git will default to no-color output, but you can [force git's coloured output](https://stackoverflow.com/questions/16073708/force-git-status-to-output-color-on-the-terminal-inside-a-script/18304605#18304605) with `git -c color.ui=always`.
 
+#### Timeouts
+
+If a command is still running after 5 minutes in any one repo (e.g. git hung waiting on a remote or a credential prompt it can't show), `exec` kills it (and anything it started) and moves on to the next repo. It's reported as a failure in the summary at the end. Change the limit with `--timeout <seconds>`, or use `--timeout 0` to disable it for genuinely long-running commands:
+
+```sh
+gitopolis exec --timeout 30 -- git fetch
+gitopolis exec --timeout 0 -- cargo build --release
+```
+
 #### Getting output as single lines
 
 For compact, parsable output that's easy to sort and analyze use `--oneline`, this will put all the output on a single line for each repo (removing newlines).

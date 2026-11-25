@@ -3480,3 +3480,108 @@ origin	existing_origin_url (push)
 "#;
 	assert_eq!(expected_remotes, remotes);
 }
+
+// https://github.com/timabell/gitopolis/issues/276
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn exec_timeout_kills_hung_command_and_continues() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/a");
+	add_a_repo(&temp, "repo_b", "git://example.org/b");
+
+	let start = std::time::Instant::now();
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["exec", "--timeout", "1", "--", "sleep 30"])
+		.assert()
+		.failure()
+		.code(1)
+		.stdout(predicate::str::contains("🏢 repo_a>"))
+		.stdout(predicate::str::contains("🏢 repo_b>"))
+		.stderr(predicate::str::contains(
+			"Command timed out after 1 seconds and was killed",
+		))
+		.stderr(predicate::str::contains(
+			"2 commands exited with non-zero status code",
+		));
+	// 1s timeout per repo, plus a little slack. Without the tree kill we'd wait for output threads.
+	assert!(
+		start.elapsed() < std::time::Duration::from_secs(4),
+		"took too long: {:?}",
+		start.elapsed()
+	);
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn exec_timeout_kills_grandchild_processes() {
+	// sh runs sleep as a separate (grandchild) process; if only sh was killed, the
+	// grandchild chain would carry on and create the marker file.
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/a");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"exec",
+			"--timeout",
+			"1",
+			"--",
+			"sh -c 'sleep 2; touch survived.txt'; true",
+		])
+		.assert()
+		.failure()
+		.code(1);
+
+	std::thread::sleep(std::time::Duration::from_secs(3));
+	assert!(
+		!temp.path().join("repo_a/survived.txt").exists(),
+		"grandchild process survived the timeout kill"
+	);
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn exec_oneline_timeout() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/a");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"exec",
+			"--oneline",
+			"--timeout",
+			"1",
+			"--",
+			"sleep",
+			"30",
+		])
+		.assert()
+		.failure()
+		.code(1)
+		.stdout(predicate::str::starts_with(
+			"repo_a\tCommand timed out after 1 seconds and was killed",
+		));
+}
+
+#[test]
+fn exec_timeout_zero_means_no_limit() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "repo_a", "git://example.org/a");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"exec",
+			"--oneline",
+			"--timeout",
+			"0",
+			"--",
+			"echo",
+			"hi",
+		])
+		.assert()
+		.success()
+		.stdout("repo_a\thi\n");
+}

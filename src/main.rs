@@ -55,6 +55,9 @@ enum Commands {
 		/// Don't output repo name when no stdout/stderr output produced
 		#[arg(long)]
 		skip_blank: bool,
+		/// Kill the command if it runs for longer than this many seconds in any one repo, and move on to the next repo. 0 means no limit.
+		#[arg(long, default_value_t = 300, value_name = "SECONDS")]
+		timeout: u64,
 		exec_args: Vec<String>,
 	},
 	/// Add/remove repo tags. Use tags to organise repos and allow running commands against subsets of the repo list. Supports comma-separated tag lists (e.g., "tag1,tag2,tag3").
@@ -191,6 +194,7 @@ fn main() {
 			tag: tag_args,
 			oneline,
 			skip_blank,
+			timeout,
 			exec_args,
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
@@ -201,6 +205,10 @@ fn main() {
 					.expect("Failed to list repositories for exec"),
 				*oneline,
 				*skip_blank,
+				match timeout {
+					0 => None,
+					secs => Some(std::time::Duration::from_secs(*secs)),
+				},
 			);
 		}
 		Some(Commands::Tag {
