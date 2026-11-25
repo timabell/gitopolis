@@ -20,7 +20,6 @@ log = "0.4.35"
 serde = "1.0.229"
 serde_derive = "1.0.229"
 toml = "1.2.3"
-openssl = { version = "0.10", features = ["vendored"] }
 wild = "2.2.1"
 
 [dev-dependencies]
@@ -31,5 +30,4 @@ tempfile = "3.27.0"
 [package.metadata.cargo-machete]
 ignored = [
     "serde",     # Used via serde_derive macro
-    "openssl",   # Required by git2 for SSL support
 ]

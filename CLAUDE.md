@@ -50,7 +50,7 @@ Gitopolis is a CLI tool for managing multiple git repositories, built in Rust wi
 
 ### Important Notes
 
-- The tool uses `git2` crate for git operations with vendored OpenSSL
+- The tool uses `git2` crate (no default features) to read local repo state; network operations (clone etc.) shell out to the `git` CLI
 - Windows has special handling for glob expansion (not done by shell)
 - Supports multiple git remotes per repository
 - Rust version is pinned in `.tool-versions` and used by CI workflows
