@@ -253,9 +253,19 @@ fn list_long() {
 		"git://example.org/test_url2",
 	);
 
-	let expected_long_output =
-		"some_git_folder\tanother_tag,some_tag\torigin=git://example.org/test_url
-some_other_git_folder\t\torigin=git://example.org/test_url2
+	let expected_long_output = "some_git_folder
+  Tags:
+    another_tag
+    some_tag
+  Remotes:
+    origin: git://example.org/test_url
+
+some_other_git_folder
+  Tags:
+    (none)
+  Remotes:
+    origin: git://example.org/test_url2
+
 ";
 
 	gitopolis_executable()
@@ -271,6 +281,43 @@ some_other_git_folder\t\torigin=git://example.org/test_url2
 		.assert()
 		.success()
 		.stdout(expected_long_output);
+}
+
+#[test]
+fn list_tab() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(
+		&temp,
+		"some_git_folder",
+		"git://example.org/test_url",
+		vec!["some_tag", "another_tag"],
+	);
+	add_a_repo(
+		&temp,
+		"some_other_git_folder",
+		"git://example.org/test_url2",
+	);
+
+	let expected_tab_output =
+		"some_git_folder\tanother_tag,some_tag\torigin=git://example.org/test_url
+some_other_git_folder\t\torigin=git://example.org/test_url2
+";
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["list", "--tab"])
+		.assert()
+		.success()
+		.stdout(expected_tab_output);
+}
+
+#[test]
+fn list_long_and_tab_conflict() {
+	gitopolis_executable()
+		.args(vec!["list", "--long", "--tab"])
+		.assert()
+		.failure()
+		.stderr(predicate::str::contains("cannot be used with"));
 }
 
 #[test]
@@ -1308,15 +1355,24 @@ fn list_long_multiple_remotes() {
 		.output()
 		.expect("Failed to add repo");
 
-	// Test list --long shows both remotes
+	// Test list --tab shows both remotes
 	let expected_output = "test_repo\t\torigin=git://example.org/origin_url,upstream=git://example.org/upstream_url\n";
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["list", "--tab"])
+		.assert()
+		.success()
+		.stdout(expected_output);
 
 	gitopolis_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "--long"])
 		.assert()
 		.success()
-		.stdout(expected_output);
+		.stdout(
+			"test_repo\n  Tags:\n    (none)\n  Remotes:\n    origin: git://example.org/origin_url\n    upstream: git://example.org/upstream_url\n\n",
+		);
 }
 
 #[test]

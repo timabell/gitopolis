@@ -208,7 +208,8 @@ Remotes:
 List all repositories with tags and remote URLs:
 
 ```sh
-gitopolis list --long
+gitopolis list --long   # multi-line, human readable
+gitopolis list --tab    # one line per repo, tab separated: path, tags (comma-separated), remotes (name=url, comma-separated). Good for scripts.
 ```
 
 List all tags and the repositories they're applied to:

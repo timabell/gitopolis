@@ -31,14 +31,18 @@ enum Commands {
 		#[clap(required = true)]
 		repo_folders: Vec<String>,
 	},
-	/// Show list of repos gitopolis knows about. Use "long" to see tags and urls (tab separated format).
+	/// Show list of repos gitopolis knows about. Just names by default, "--long" for human-readable tags and remotes, "--tab" for machine-readable tab separated tags and remotes.
 	List {
 		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
 		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
 		#[arg(short, long)]
 		tag: Vec<String>,
-		#[clap(short, long)]
+		/// Multi-line human-readable output showing tags and remotes of each repo (like `show`)
+		#[clap(short, long, conflicts_with = "tab")]
 		long: bool,
+		/// One line per repo: path, comma-separated tags, and comma-separated name=url remotes, separated by tabs. For scripts.
+		#[clap(long)]
+		tab: bool,
 	},
 	/// Run any shell command. E.g. `gitopolis exec -- git pull`. Double-dash separator indicates end of gitopolis's arguments and prevents arguments to your commands being interpreted by gitopolis.
 	Exec {
@@ -158,13 +162,21 @@ fn main() {
 		Some(Commands::List {
 			tag: tag_args,
 			long,
+			tab,
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
+			let format = if *long {
+				ListFormat::Long
+			} else if *tab {
+				ListFormat::Tab
+			} else {
+				ListFormat::Names
+			};
 			list(
 				init_gitopolis()
 					.list(&filter)
 					.expect("Failed to list repositories"),
-				*long,
+				format,
 			)
 		}
 		Some(Commands::Clone {
@@ -400,22 +412,50 @@ fn add(repo_folders: Vec<String>) {
 	}
 }
 
-fn list(repos: Vec<Repo>, long: bool) {
+enum ListFormat {
+	/// Just repo paths, one per line
+	Names,
+	/// Tab separated, one line per repo, for machines
+	Tab,
+	/// Multi-line, for humans
+	Long,
+}
+
+fn list(repos: Vec<Repo>, format: ListFormat) {
 	if repos.is_empty() {
 		println!("No repos");
 		std::process::exit(2);
 	}
 	for repo in &repos {
-		if long {
-			let remotes_str = repo
-				.remotes
-				.iter()
-				.map(|(name, remote)| format!("{}={}", name, remote.url))
-				.collect::<Vec<_>>()
-				.join(",");
-			println!("{}\t{}\t{}", repo.path, repo.tags.join(","), remotes_str);
-		} else {
-			println!("{}", repo.path);
+		match format {
+			ListFormat::Names => println!("{}", repo.path),
+			ListFormat::Tab => {
+				let remotes_str = repo
+					.remotes
+					.iter()
+					.map(|(name, remote)| format!("{}={}", name, remote.url))
+					.collect::<Vec<_>>()
+					.join(",");
+				println!("{}\t{}\t{}", repo.path, repo.tags.join(","), remotes_str);
+			}
+			ListFormat::Long => {
+				println!("{}", repo.path);
+				println!("  Tags:");
+				if repo.tags.is_empty() {
+					println!("    (none)");
+				}
+				for tag in &repo.tags {
+					println!("    {}", tag);
+				}
+				println!("  Remotes:");
+				if repo.remotes.is_empty() {
+					println!("    (none)");
+				}
+				for (name, remote) in &repo.remotes {
+					println!("    {}: {}", name, remote.url);
+				}
+				println!();
+			}
 		}
 	}
 }
