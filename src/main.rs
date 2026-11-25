@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use gitopolis::exec::exec;
 use gitopolis::git::GitImpl;
 use gitopolis::gitopolis::{Gitopolis, GitopolisError};
@@ -125,6 +125,11 @@ enum Commands {
 		#[clap(subcommand)]
 		entity: RenameEntity,
 	},
+	/// Generate man pages. Prints the main man page to stdout, or writes pages for gitopolis and all
+	/// its subcommands (gitopolis.1, gitopolis-exec.1 etc.) to OUT_DIR if given.
+	/// Mostly for packagers, e.g. `gitopolis man /usr/share/man/man1/`
+	#[command(hide = true)]
+	Man { out_dir: Option<std::path::PathBuf> },
 }
 
 /// Options for choosing which repos a command applies to
@@ -349,6 +354,7 @@ fn main() {
 				}
 			},
 		},
+		Some(Commands::Man { out_dir }) => man(out_dir),
 		None => {
 			panic!("no command") // this doesn't happen because help shows instead
 		}
@@ -428,6 +434,26 @@ fn clone_from_url(git_url: &str, target_dir: &Option<String>, tag_args: &[String
 }
 
 const STATE_FILE: &str = ".gitopolis.toml";
+
+/// https://github.com/timabell/gitopolis/issues/239
+fn man(out_dir: &Option<std::path::PathBuf>) {
+	// The short about text also has license/repo lines which look odd in the man page NAME section
+	let cmd = Args::command();
+	let full_about = cmd.get_about().cloned();
+	let cmd = cmd
+		// generate_to() does this itself; do it for stdout too so SUBCOMMANDS doesn't list a non-existent gitopolis-help(1)
+		.disable_help_subcommand(true)
+		.about("A CLI tool for managing multiple git repositories")
+		.long_about(full_about.map(|a| a.to_string()).unwrap_or_default());
+	let result = match out_dir {
+		Some(dir) => std::fs::create_dir_all(dir).and_then(|_| clap_mangen::generate_to(cmd, dir)),
+		None => clap_mangen::Man::new(cmd).render(&mut std::io::stdout()),
+	};
+	if let Err(error) = result {
+		eprintln!("Error generating man pages: {error}");
+		std::process::exit(1);
+	}
+}
 
 fn init_gitopolis() -> Gitopolis {
 	Gitopolis::new(

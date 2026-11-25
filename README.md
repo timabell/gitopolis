@@ -79,6 +79,15 @@ yay -S gitopolis
 
 <https://repology.org/project/gitopolis/versions>
 
+### Man pages
+
+Man pages can be generated from the binary (handy for packagers):
+
+```sh
+gitopolis man > gitopolis.1               # main page to stdout
+gitopolis man /usr/local/share/man/man1/  # gitopolis.1, gitopolis-exec.1 etc for every subcommand
+```
+
 ## Built in help
 
 gitopolis has a fully documented command system, so use `-h` to get help for each command:

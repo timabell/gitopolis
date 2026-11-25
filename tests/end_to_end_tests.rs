@@ -3809,3 +3809,45 @@ fn exclude_unknown_repo_warns() {
 		.stdout("repo_a\n")
 		.stderr("Warning: --exclude 'repo_typo' doesn't match any repo\n");
 }
+
+// https://github.com/timabell/gitopolis/issues/239
+#[test]
+fn man_page_to_stdout() {
+	gitopolis_executable()
+		.args(vec!["man"])
+		.assert()
+		.success()
+		.stdout(predicate::str::contains(".TH gitopolis"))
+		.stdout(predicate::str::contains("gitopolis\\-exec(1)"))
+		.stdout(predicate::str::contains("gitopolis\\-help(1)").not());
+}
+
+#[test]
+fn man_pages_to_dir() {
+	let temp = temp_folder();
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["man", "out/man1"])
+		.assert()
+		.success();
+	let dir = temp.path().join("out/man1");
+	for page in [
+		"gitopolis.1",
+		"gitopolis-exec.1",
+		"gitopolis-clone.1",
+		"gitopolis-move-repo.1",
+	] {
+		assert!(dir.join(page).exists(), "missing {page}");
+	}
+	// hidden man command shouldn't document itself
+	assert!(!dir.join("gitopolis-man.1").exists());
+}
+
+#[test]
+fn man_hidden_from_help() {
+	gitopolis_executable()
+		.arg("help")
+		.assert()
+		.success()
+		.stdout(predicate::str::contains("  man ").not());
+}
