@@ -25,6 +25,9 @@ enum Commands {
 	Add {
 		#[clap(required = true)]
 		repo_folders: Vec<String>,
+		/// Tags to apply to all the added repos. Comma-separated and/or repeated (e.g. "--tag foo,bar --tag baz").
+		#[arg(short, long)]
+		tag: Vec<String>,
 	},
 	/// Remove one or more git repos from gitopolis's list. Leaves actual repo on filesystem alone.
 	Remove {
@@ -159,7 +162,7 @@ fn main() {
 		.init();
 
 	match &Args::parse_from(wild::args()).command {
-		Some(Commands::Add { repo_folders }) => add(repo_folders.to_owned()),
+		Some(Commands::Add { repo_folders, tag }) => add(repo_folders.to_owned(), tag),
 		Some(Commands::Remove { repo_folders }) => {
 			init_gitopolis()
 				.remove(repo_folders)
@@ -377,10 +380,7 @@ fn clone(url: &Option<String>, target_dir: &Option<String>, tag_args: &[String])
 fn clone_from_url(git_url: &str, target_dir: &Option<String>, tag_args: &[String]) {
 	let mut gitopolis = init_gitopolis();
 	// Flatten all tags - when cloning a single repo, all tags are applied (no AND/OR logic)
-	let tags: Vec<String> = tag_args
-		.iter()
-		.flat_map(|s| s.split(',').map(|t| t.trim().to_string()))
-		.collect();
+	let tags = flatten_tags(tag_args);
 	match gitopolis.clone_and_add(git_url, target_dir.as_deref(), &tags) {
 		Ok(folder_name) => {
 			println!("Successfully cloned and added {}", folder_name);
@@ -401,11 +401,12 @@ fn init_gitopolis() -> Gitopolis {
 	)
 }
 
-fn add(repo_folders: Vec<String>) {
+fn add(repo_folders: Vec<String>, tag_args: &[String]) {
+	let mut added_folders: Vec<String> = vec![];
 	let mut skipped_count = 0;
 	for repo_folder in repo_folders {
 		match init_gitopolis().add(repo_folder.to_owned()) {
-			Ok(()) => {}
+			Ok(()) => added_folders.push(repo_folder),
 			// Couldn't read it as a git repo (e.g. a plain folder or file matched by `add *`) - warn and carry on with the rest
 			Err(GitopolisError::GitError { message }) => {
 				eprintln!("Skipped {repo_folder}: {message}");
@@ -417,10 +418,29 @@ fn add(repo_folders: Vec<String>) {
 			}
 		}
 	}
+	// Only tag the folders that were actually added, skipped ones aren't in the config
+	if !added_folders.is_empty() {
+		for tag in flatten_tags(tag_args) {
+			if let Err(error) = init_gitopolis().add_tag(&tag, &added_folders) {
+				eprintln!("Error: {}", error.message());
+				std::process::exit(1);
+			}
+		}
+	}
 	if skipped_count > 0 {
 		eprintln!("{skipped_count} folder(s) skipped (see above for why)");
 		std::process::exit(1);
 	}
+}
+
+/// Flatten repeated, comma-separated tag args into a single list of tags (no AND/OR logic).
+/// `--tag foo,bar --tag baz` becomes [foo, bar, baz]
+fn flatten_tags(tag_args: &[String]) -> Vec<String> {
+	tag_args
+		.iter()
+		.flat_map(|s| s.split(',').map(|t| t.trim().to_string()))
+		.filter(|t| !t.is_empty())
+		.collect()
 }
 
 enum ListFormat {

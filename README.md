@@ -99,6 +99,12 @@ cd ~/repos/
 gitopolis add *
 ```
 
+You can tag repos as you add them (same `--tag` syntax as `clone`):
+
+```sh
+gitopolis add --tag work,backend api-service billing-service
+```
+
 ### 2. Clone new repos
 
 ```sh

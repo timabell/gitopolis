@@ -146,6 +146,67 @@ url = \"git://example.org/b\"
 }
 
 #[test]
+fn add_with_tags() {
+	// https://github.com/timabell/gitopolis/issues/281
+	let temp = temp_folder();
+	create_git_repo(&temp, "repo_a", "git://example.org/a");
+	create_git_repo(&temp, "repo_b", "git://example.org/b");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec![
+			"add", "--tag", "foo,bar", "-t", "baz", "repo_a", "repo_b",
+		])
+		.assert()
+		.success();
+
+	let expected_toml = "[[repos]]
+path = \"repo_a\"
+tags = [\"bar\", \"baz\", \"foo\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/a\"
+
+[[repos]]
+path = \"repo_b\"
+tags = [\"bar\", \"baz\", \"foo\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/b\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
+fn add_with_tags_skips_non_git_folders() {
+	// skipped folders aren't in the config so must not be tagged (would error with "not found")
+	let temp = temp_folder();
+	create_git_repo(&temp, "repo_a", "git://example.org/a");
+	fs::create_dir_all(temp.path().join("not_a_repo")).expect("failed to create folder");
+
+	gitopolis_executable()
+		.current_dir(&temp)
+		.args(vec!["add", "--tag", "foo", "repo_a", "not_a_repo"])
+		.assert()
+		.failure()
+		.code(1)
+		.stderr(predicate::str::contains("Skipped not_a_repo: "))
+		.stderr(predicate::str::contains("not found").not());
+
+	let expected_toml = "[[repos]]
+path = \"repo_a\"
+tags = [\"foo\"]
+
+[repos.remotes.origin]
+name = \"origin\"
+url = \"git://example.org/a\"
+";
+	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+}
+
+#[test]
 fn remove() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
