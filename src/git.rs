@@ -45,10 +45,12 @@ impl Git for GitImpl {
 		})?;
 
 		let mut remotes = BTreeMap::new();
-		for remote_name in remote_names.iter().flatten() {
+		for remote_name in remote_names.iter().flatten().flatten() {
 			if let Ok(remote) = repository.find_remote(remote_name) {
-				if let Some(url) = remote.url() {
-					remotes.insert(remote_name.to_string(), url.to_string());
+				if let Ok(url) = remote.url() {
+					if !url.is_empty() {
+						remotes.insert(remote_name.to_string(), url.to_string());
+					}
 				}
 			}
 		}
