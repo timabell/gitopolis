@@ -1,5 +1,6 @@
 extern crate core;
 
+pub mod completion;
 pub mod exec;
 pub mod git;
 pub mod gitopolis;

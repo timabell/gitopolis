@@ -88,6 +88,23 @@ gitopolis -h
 gitopolis clone -h
 ```
 
+## Shell completion
+
+Tab completion of commands and options, **including your tag names and repo paths** (read from `.gitopolis.toml` in the current directory, so they're always up to date):
+
+```sh
+# bash
+echo 'source <(COMPLETE=bash gitopolis)' >> ~/.bashrc
+# zsh
+echo 'source <(COMPLETE=zsh gitopolis)' >> ~/.zshrc
+# fish
+echo 'COMPLETE=fish gitopolis | source' >> ~/.config/fish/completions/gitopolis.fish
+# powershell
+echo '$env:COMPLETE = "powershell"; gitopolis | Out-String | Invoke-Expression; Remove-Item Env:\COMPLETE' >> $PROFILE
+```
+
+Comma-separated tag lists complete too, e.g. `gitopolis exec --tag backend,<tab>`.
+
 ## Initial setup
 
 There are several ways to get started:

@@ -1,4 +1,7 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueHint};
+use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
+use clap_complete::CompleteEnv;
+use gitopolis::completion::{complete_repo, complete_tag_list};
 use gitopolis::exec::exec;
 use gitopolis::git::GitImpl;
 use gitopolis::gitopolis::{Gitopolis, GitopolisError};
@@ -23,15 +26,15 @@ struct Args {
 enum Commands {
 	/// Add one or more git repos to manage.
 	Add {
-		#[clap(required = true)]
+		#[clap(required = true, value_hint = ValueHint::DirPath)]
 		repo_folders: Vec<String>,
 		/// Tags to apply to all the added repos. Comma-separated and/or repeated (e.g. "--tag foo,bar --tag baz").
-		#[arg(short, long)]
+		#[arg(short, long, add = ArgValueCompleter::new(tag_completer))]
 		tag: Vec<String>,
 	},
 	/// Remove one or more git repos from gitopolis's list. Leaves actual repo on filesystem alone.
 	Remove {
-		#[clap(required = true)]
+		#[clap(required = true, add = ArgValueCompleter::new(repo_completer))]
 		repo_folders: Vec<String>,
 	},
 	/// Show list of repos gitopolis knows about. Just names by default, "--long" for human-readable tags and remotes, "--tab" for machine-readable tab separated tags and remotes.
@@ -57,6 +60,7 @@ enum Commands {
 		/// Kill the command if it runs for longer than this many seconds in any one repo, and move on to the next repo. 0 means no limit.
 		#[arg(long, default_value_t = 300, value_name = "SECONDS")]
 		timeout: u64,
+		#[arg(value_hint = ValueHint::AnyPath)]
 		exec_args: Vec<String>,
 	},
 	/// Add/remove repo tags. Use tags to organise repos and allow running commands against subsets of the repo list. Supports comma-separated tag lists (e.g., "tag1,tag2,tag3").
@@ -64,8 +68,9 @@ enum Commands {
 		/// Remove this tag from these repo_folders. If no repos specified, removes from ALL repos.
 		#[clap(short, long)]
 		remove: bool,
-		#[clap(required = true)]
+		#[clap(required = true, add = ArgValueCompleter::new(tag_completer))]
 		tag: String,
+		#[clap(add = ArgValueCompleter::new(repo_completer))]
 		repo_folders: Vec<String>,
 	},
 	/// List known tags. Use "long" to list repos per tag.
@@ -82,18 +87,19 @@ enum Commands {
 		/// If omitted, clones repos defined in .gitopolis.toml configuration
 		url: Option<String>,
 		/// Optional addition to URL - target directory name to clone this url into (like git clone). If omitted, extracts name from URL
+		#[arg(value_hint = ValueHint::DirPath)]
 		target_dir: Option<String>,
 		/// When cloning from URL, all specified tags are applied to the new repo.
 		/// When cloning without URL from existing config,
 		/// filters repos to clone from configuration by tags; comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar),
 		/// multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
-		#[arg(short, long)]
+		#[arg(short, long, add = ArgValueCompleter::new(tag_completer))]
 		tag: Vec<String>,
 		/// When cloning from existing config, don't clone these repos (comma-separated and/or repeated)
-		#[arg(long)]
+		#[arg(long, add = ArgValueCompleter::new(repo_list_completer))]
 		exclude: Vec<String>,
 		/// When cloning from existing config, don't clone repos with any of these tags (comma-separated and/or repeated)
-		#[arg(long)]
+		#[arg(long, add = ArgValueCompleter::new(tag_completer))]
 		exclude_tag: Vec<String>,
 	},
 	/// Sync remotes between git repositories and .gitopolis.toml configuration
@@ -112,7 +118,7 @@ enum Commands {
 	},
 	/// Show detailed information about a repository including tags and remotes
 	Show {
-		#[clap(required = true)]
+		#[clap(required = true, add = ArgValueCompleter::new(repo_completer))]
 		repo_folder: String,
 	},
 	/// Move a repository to a new location, updating gitopolis configuration
@@ -132,13 +138,13 @@ enum Commands {
 struct FilterArgs {
 	/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
 	/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
-	#[arg(short, long)]
+	#[arg(short, long, add = ArgValueCompleter::new(tag_completer))]
 	tag: Vec<String>,
 	/// Exclude these repos (comma-separated and/or repeated, e.g. "--exclude repo1,repo2 --exclude repo3")
-	#[arg(long)]
+	#[arg(long, add = ArgValueCompleter::new(repo_list_completer))]
 	exclude: Vec<String>,
 	/// Exclude repos that have ANY of these tags (comma-separated and/or repeated, e.g. "--exclude-tag archived,slow")
-	#[arg(long)]
+	#[arg(long, add = ArgValueCompleter::new(tag_completer))]
 	exclude_tag: Vec<String>,
 }
 
@@ -156,8 +162,10 @@ enum MoveEntity {
 	#[clap(verbatim_doc_comment)]
 	Repo {
 		/// Current path of the repository
+		#[clap(add = ArgValueCompleter::new(repo_completer))]
 		old_path: String,
 		/// New path for the repository, or a folder to move it into (existing, or ending with a slash)
+		#[clap(value_hint = ValueHint::DirPath)]
 		new_path: String,
 	},
 }
@@ -167,6 +175,7 @@ enum RenameEntity {
 	/// Rename a tag across all repos. Use --merge if some repos already have the new tag.
 	Tag {
 		/// Current tag name
+		#[clap(add = ArgValueCompleter::new(tag_completer))]
 		old_name: String,
 		/// New tag name
 		new_name: String,
@@ -181,6 +190,9 @@ fn main() {
 		.format(|buf, record| writeln!(buf, "{}", record.args())) // turn off log decorations https://docs.rs/env_logger/0.9.0/env_logger/#using-a-custom-format
 		.filter(None, LevelFilter::Info) // turn on log output
 		.init();
+
+	// Dynamic shell completion, e.g. `source <(COMPLETE=bash gitopolis)`. Does nothing unless the COMPLETE env var is set.
+	CompleteEnv::with_factory(Args::command).complete();
 
 	match &Args::parse_from(wild::args()).command {
 		Some(Commands::Add { repo_folders, tag }) => add(repo_folders.to_owned(), tag),
@@ -428,6 +440,53 @@ fn clone_from_url(git_url: &str, target_dir: &Option<String>, tag_args: &[String
 }
 
 const STATE_FILE: &str = ".gitopolis.toml";
+
+/// Run `f`, returning the default value instead of panicking (and without printing the panic) if
+/// it panics - e.g. an empty or unreadable .gitopolis.toml. Completion runs on every tab press so
+/// errors would otherwise be dumped into the user's command line.
+fn quietly<T: Default>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
+	let previous_hook = std::panic::take_hook();
+	std::panic::set_hook(Box::new(|_| {}));
+	let result = std::panic::catch_unwind(f).unwrap_or_default();
+	std::panic::set_hook(previous_hook);
+	result
+}
+
+/// Suggest tags from .gitopolis.toml in the current directory
+fn tag_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+	let tags = quietly(|| init_gitopolis().tags().unwrap_or_default());
+	complete_tag_list(&tags, &current.to_string_lossy())
+		.into_iter()
+		.map(CompletionCandidate::new)
+		.collect()
+}
+
+/// Suggest repo paths from .gitopolis.toml in the current directory
+fn repo_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+	complete_repo(&known_repo_paths(), &current.to_string_lossy())
+		.into_iter()
+		.map(CompletionCandidate::new)
+		.collect()
+}
+
+/// Suggest repo paths for comma-separated repo list args like --exclude
+fn repo_list_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+	complete_tag_list(&known_repo_paths(), &current.to_string_lossy())
+		.into_iter()
+		.map(CompletionCandidate::new)
+		.collect()
+}
+
+fn known_repo_paths() -> Vec<String> {
+	quietly(|| {
+		init_gitopolis()
+			.list(&TagFilter::all())
+			.unwrap_or_default()
+			.into_iter()
+			.map(|r| r.path)
+			.collect()
+	})
+}
 
 fn init_gitopolis() -> Gitopolis {
 	Gitopolis::new(

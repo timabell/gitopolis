@@ -3809,3 +3809,112 @@ fn exclude_unknown_repo_warns() {
 		.stdout("repo_a\n")
 		.stderr("Warning: --exclude 'repo_typo' doesn't match any repo\n");
 }
+
+// https://github.com/timabell/gitopolis/issues/238
+fn complete(temp: &TempDir, index: usize, words: Vec<&str>) -> AssertCommand {
+	let mut cmd = gitopolis_executable();
+	cmd.current_dir(temp)
+		.env("COMPLETE", "bash")
+		.env("_CLAP_COMPLETE_INDEX", index.to_string())
+		.env("_CLAP_IFS", "\n")
+		.arg("--")
+		.arg("gitopolis")
+		.args(words);
+	cmd
+}
+
+#[test]
+fn completion_of_tags() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "api", "git://example.org/a", vec!["backend", "rust"]);
+	add_a_repo_with_tags(&temp, "web", "git://example.org/w", vec!["frontend"]);
+
+	complete(&temp, 3, vec!["exec", "--tag", "ba"])
+		.assert()
+		.success()
+		.stdout("backend");
+
+	complete(&temp, 3, vec!["list", "-t", "backend,"])
+		.assert()
+		.success()
+		.stdout("backend,frontend\nbackend,rust");
+
+	complete(&temp, 3, vec!["rename", "tag", "f"])
+		.assert()
+		.success()
+		.stdout("frontend");
+}
+
+#[test]
+fn completion_of_repos() {
+	let temp = temp_folder();
+	add_a_repo(&temp, "api", "git://example.org/a");
+	add_a_repo(&temp, "app", "git://example.org/b");
+	add_a_repo(&temp, "web", "git://example.org/w");
+
+	complete(&temp, 2, vec!["show", "a"])
+		.assert()
+		.success()
+		.stdout("api\napp");
+
+	complete(&temp, 3, vec!["tag", "sometag", "w"])
+		.assert()
+		.success()
+		.stdout("web");
+}
+
+#[test]
+fn completion_without_config_does_not_fail() {
+	let temp = temp_folder();
+	complete(&temp, 3, vec!["list", "--tag", ""])
+		.assert()
+		.success()
+		.stdout("");
+}
+
+#[test]
+fn completion_script_generation() {
+	let temp = temp_folder();
+	for shell in ["bash", "zsh", "fish"] {
+		gitopolis_executable()
+			.current_dir(&temp)
+			.env("COMPLETE", shell)
+			.assert()
+			.success()
+			.stdout(predicate::str::contains("gitopolis"));
+	}
+}
+
+#[test]
+fn completion_with_broken_config_does_not_print_panic() {
+	let temp = temp_folder();
+	// valid toml but no repos key - loading it panics
+	write_gitopolis_state_toml(&temp, "# empty\n");
+	complete(&temp, 3, vec!["list", "--tag", ""])
+		.assert()
+		.success()
+		.stdout("")
+		.stderr("");
+}
+
+#[test]
+fn completion_of_filter_args() {
+	let temp = temp_folder();
+	add_a_repo_with_tags(&temp, "api", "git://example.org/a", vec!["backend"]);
+	add_a_repo(&temp, "app", "git://example.org/b");
+
+	complete(&temp, 3, vec!["exec", "--exclude", "api,a"])
+		.assert()
+		.success()
+		.stdout("api,app");
+
+	complete(&temp, 3, vec!["list", "--exclude-tag", "b"])
+		.assert()
+		.success()
+		.stdout("backend");
+
+	complete(&temp, 3, vec!["add", "--tag", "b"])
+		.assert()
+		.success()
+		.stdout("backend");
+}
