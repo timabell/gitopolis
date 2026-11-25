@@ -1,8 +1,7 @@
 name: update-nix-flake
 
 on:
-  release:
-    types: [published]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -19,6 +18,8 @@ jobs:
 
       - name: Run updater
         run: python3 update.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Commit and push if changed
         run: |

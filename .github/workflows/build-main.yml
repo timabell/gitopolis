@@ -94,3 +94,7 @@ jobs:
     secrets:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
+  # Called directly: releases made with GITHUB_TOKEN don't trigger `release` events
+  update-nix-flake:
+    needs: release
+    uses: ./.github/workflows/update-nix-flake.yml
