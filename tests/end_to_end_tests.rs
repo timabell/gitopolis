@@ -3599,3 +3599,37 @@ fn exclude_unknown_repo_warns() {
 		.stdout("repo_a\n")
 		.stderr("Warning: --exclude 'repo_typo' doesn't match any repo\n");
 }
+
+#[test]
+fn git_impl_remote_operations() {
+	use gitopolis::git::{Git, GitImpl};
+	let temp = temp_folder();
+	let path = temp.path().join("repo");
+	fs::create_dir_all(&path).unwrap();
+	git_init(&path);
+	let path_str = path.to_str().unwrap();
+	let git = GitImpl {};
+
+	git.add_remote(path_str, "origin", "git://example.org/one");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/one".to_string())
+	);
+
+	// adding an existing remote warns and leaves it alone
+	git.add_remote(path_str, "origin", "git://example.org/other");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/one".to_string())
+	);
+
+	git.set_remote_url(path_str, "origin", "git://example.org/two");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/two".to_string())
+	);
+
+	// setting the url of a missing remote doesn't create it
+	git.set_remote_url(path_str, "missing", "git://example.org/three");
+	assert_eq!(list_git_remotes(&path), vec!["origin".to_string()]);
+}
