@@ -58,36 +58,28 @@ impl Git for GitImpl {
 	}
 
 	fn add_remote(&self, path: &str, remote_name: &str, url: &str) {
-		let output = Command::new("git")
-			.current_dir(path)
-			.args(
-				[
-					"remote".to_string(),
-					"add".to_string(),
-					remote_name.to_string(),
-					url.to_string(),
-				]
-				.to_vec(),
-			)
-			.output()
-			.expect("Error running git remote add");
-		if !output.status.success() {
-			let stderr =
-				String::from_utf8(output.stderr).expect("Error converting stderr to string");
-			eprintln!("Warning: Failed to add remote {remote_name}: {stderr}");
+		let result =
+			Repository::open(path).and_then(|repo| repo.remote(remote_name, url).map(|_| ()));
+		if let Err(error) = result {
+			eprintln!(
+				"Warning: Failed to add remote {remote_name}: {}",
+				error.message()
+			);
 		}
 	}
 
 	fn set_remote_url(&self, path: &str, remote_name: &str, url: &str) {
-		let output = Command::new("git")
-			.current_dir(path)
-			.args(["remote", "set-url", remote_name, url])
-			.output()
-			.expect("Error running git remote set-url");
-		if !output.status.success() {
-			let stderr =
-				String::from_utf8(output.stderr).expect("Error converting stderr to string");
-			eprintln!("Warning: Failed to set URL for remote {remote_name}: {stderr}");
+		// Unlike `git remote set-url`, libgit2 would silently create a half-configured remote
+		// if it doesn't exist, so check first.
+		let result = Repository::open(path).and_then(|repo| {
+			repo.find_remote(remote_name)?;
+			repo.remote_set_url(remote_name, url)
+		});
+		if let Err(error) = result {
+			eprintln!(
+				"Warning: Failed to set URL for remote {remote_name}: {}",
+				error.message()
+			);
 		}
 	}
 

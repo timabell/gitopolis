@@ -1,5 +1,4 @@
 use std::fs;
-use std::process::Command;
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command as AssertCommand;
@@ -1223,17 +1222,47 @@ fn create_git_repo(temp: &TempDir, repo_name: &str, remote_url: &str) {
 	let path = &temp.path().join(repo_name);
 	fs::create_dir_all(path).expect("create repo dir failed");
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git command failed");
+	git_init(path);
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["config", "remote.origin.url", remote_url])
-		.output()
-		.expect("git command failed");
+	git_remote_add(path, "origin", remote_url);
+}
+
+// Test helpers use libgit2 rather than the git cli so they don't depend on the installed git
+// version's arguments and output https://github.com/timabell/gitopolis/issues/187
+
+fn git_init(path: impl AsRef<std::path::Path>) {
+	let mut opts = git2::RepositoryInitOptions::new();
+	opts.initial_head("main");
+	git2::Repository::init_opts(path, &opts).expect("git init failed");
+}
+
+fn git_remote_add(path: impl AsRef<std::path::Path>, name: &str, url: &str) {
+	git2::Repository::open(path)
+		.expect("git open failed")
+		.remote(name, url)
+		.expect("git remote add failed");
+}
+
+/// Equivalent of `git remote -v` output
+fn git_remotes_verbose(path: impl AsRef<std::path::Path>) -> String {
+	let repo = git2::Repository::open(path).expect("git open failed");
+	let mut out = String::new();
+	for name in repo
+		.remotes()
+		.expect("git remotes failed")
+		.iter()
+		.flatten()
+		.flatten()
+	{
+		let url = repo
+			.find_remote(name)
+			.expect("git find remote failed")
+			.url()
+			.unwrap_or("")
+			.to_string();
+		out.push_str(&format!("{name}\t{url} (fetch)\n{name}\t{url} (push)\n"));
+	}
+	out
 }
 
 fn gitopolis_executable() -> AssertCommand {
@@ -1324,34 +1353,12 @@ fn add_multiple_remotes() {
 	fs::create_dir_all(path).expect("create repo dir failed");
 
 	// Initialize git repo
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path);
 
 	// Add multiple remotes
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/origin_url",
-		])
-		.output()
-		.expect("git remote add origin failed");
+	git_remote_add(path, "origin", "git://example.org/origin_url");
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"upstream",
-			"git://example.org/upstream_url",
-		])
-		.output()
-		.expect("git remote add upstream failed");
+	git_remote_add(path, "upstream", "git://example.org/upstream_url");
 
 	// Run gitopolis add
 	gitopolis_executable()
@@ -1384,34 +1391,12 @@ fn list_long_multiple_remotes() {
 	fs::create_dir_all(path).expect("create repo dir failed");
 
 	// Initialize git repo
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path);
 
 	// Add multiple remotes
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/origin_url",
-		])
-		.output()
-		.expect("git remote add origin failed");
+	git_remote_add(path, "origin", "git://example.org/origin_url");
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"upstream",
-			"git://example.org/upstream_url",
-		])
-		.output()
-		.expect("git remote add upstream failed");
+	git_remote_add(path, "upstream", "git://example.org/upstream_url");
 
 	// Run gitopolis add
 	gitopolis_executable()
@@ -1522,77 +1507,37 @@ url = \"source_upstream\"
 	// Verify both remotes exist in cloned repo
 	let cloned_path = temp.path().join("cloned_repo");
 
-	let origin_output = Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["config", "remote.origin.url"])
-		.output()
-		.expect("git config failed");
-	assert!(origin_output.status.success());
-	let origin_url = String::from_utf8(origin_output.stdout)
-		.expect("utf8 conversion failed")
-		.trim()
-		.to_string();
+	let origin_url = read_git_remote_url(&cloned_path, "origin").expect("remote missing");
 	assert!(origin_url.ends_with("source_origin"));
 
-	let upstream_output = Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["config", "remote.upstream.url"])
-		.output()
-		.expect("git config failed");
-	assert!(upstream_output.status.success());
-	let upstream_url = String::from_utf8(upstream_output.stdout)
-		.expect("utf8 conversion failed")
-		.trim()
-		.to_string();
+	let upstream_url = read_git_remote_url(&cloned_path, "upstream").expect("remote missing");
 	assert!(upstream_url.ends_with("source_upstream"));
 }
 
 /// Helper: init a git repo and add remotes
 fn init_git_repo_with_remotes(path: &std::path::Path, remotes: &[(&str, &str)]) {
 	fs::create_dir_all(path).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path);
 	for (name, url) in remotes {
-		Command::new("git")
-			.current_dir(path)
-			.args(vec!["remote", "add", name, url])
-			.output()
-			.expect("git remote add failed");
+		git_remote_add(path, name, url);
 	}
 }
 
 /// Helper: read a git remote URL
 fn read_git_remote_url(path: &std::path::Path, remote_name: &str) -> Option<String> {
-	let output = Command::new("git")
-		.current_dir(path)
-		.args(vec!["config", &format!("remote.{}.url", remote_name)])
-		.output()
-		.expect("git config failed");
-	if output.status.success() {
-		Some(
-			String::from_utf8(output.stdout)
-				.expect("utf8 conversion failed")
-				.trim()
-				.to_string(),
-		)
-	} else {
-		None
-	}
+	let repo = git2::Repository::open(path).expect("git open failed");
+	let remote = repo.find_remote(remote_name).ok()?;
+	remote.url().ok().map(|u| u.to_string())
 }
 
 /// Helper: list all git remote names
 fn list_git_remotes(path: &std::path::Path) -> Vec<String> {
-	let output = Command::new("git")
-		.current_dir(path)
-		.args(vec!["remote"])
-		.output()
-		.expect("git remote failed");
-	String::from_utf8(output.stdout)
-		.expect("utf8 conversion failed")
-		.lines()
+	let repo = git2::Repository::open(path).expect("git open failed");
+	repo.remotes()
+		.expect("git remotes failed")
+		.iter()
+		.flatten()
+		.flatten()
 		.map(|s| s.to_string())
 		.collect()
 }
@@ -1817,40 +1762,14 @@ fn sync_read_remotes_with_tag() {
 	// Create first repo with tag
 	let path1 = &temp.path().join("tagged_repo");
 	fs::create_dir_all(path1).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/tagged_url",
-		])
-		.output()
-		.expect("git remote add failed");
+	git_init(path1);
+	git_remote_add(path1, "origin", "git://example.org/tagged_url");
 
 	// Create second repo without tag
 	let path2 = &temp.path().join("untagged_repo");
 	fs::create_dir_all(path2).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/untagged_url",
-		])
-		.output()
-		.expect("git remote add failed");
+	git_init(path2);
+	git_remote_add(path2, "origin", "git://example.org/untagged_url");
 
 	// Create initial state with tags
 	let initial_state_toml = "[[repos]]
@@ -1889,20 +1808,12 @@ fn sync_write_remotes_with_tag() {
 	// Create first repo with tag
 	let path1 = &temp.path().join("tagged_repo");
 	fs::create_dir_all(path1).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path1);
 
 	// Create second repo without tag
 	let path2 = &temp.path().join("untagged_repo");
 	fs::create_dir_all(path2).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path2);
 
 	// Create state with remotes to add
 	let initial_state_toml = "[[repos]]
@@ -1937,21 +1848,11 @@ url = \"git://example.org/untagged_origin\"
 		.stderr(predicate::str::contains("untagged_repo").not());
 
 	// Verify only tagged repo got remotes
-	let output1 = Command::new("git")
-		.current_dir(path1)
-		.args(vec!["remote", "-v"])
-		.output()
-		.expect("git remote failed");
-	let remotes1 = String::from_utf8(output1.stdout).expect("utf8 conversion failed");
+	let remotes1 = git_remotes_verbose(path1);
 	assert!(remotes1.contains("origin"));
 	assert!(remotes1.contains("upstream"));
 
-	let output2 = Command::new("git")
-		.current_dir(path2)
-		.args(vec!["remote", "-v"])
-		.output()
-		.expect("git remote failed");
-	let remotes2 = String::from_utf8(output2.stdout).expect("utf8 conversion failed");
+	let remotes2 = git_remotes_verbose(path2);
 	assert!(remotes2.is_empty());
 }
 
@@ -2171,34 +2072,12 @@ fn show() {
 	fs::create_dir_all(path).expect("create repo dir failed");
 
 	// Initialize git repo
-	Command::new("git")
-		.current_dir(path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path);
 
 	// Add multiple remotes
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/origin_url",
-		])
-		.output()
-		.expect("git remote add origin failed");
+	git_remote_add(path, "origin", "git://example.org/origin_url");
 
-	Command::new("git")
-		.current_dir(path)
-		.args(vec![
-			"remote",
-			"add",
-			"upstream",
-			"git://example.org/upstream_url",
-		])
-		.output()
-		.expect("git remote add upstream failed");
+	git_remote_add(path, "upstream", "git://example.org/upstream_url");
 
 	// Add repo to gitopolis and tag it
 	gitopolis_executable()
@@ -3136,59 +3015,20 @@ fn sync_read_remotes_with_multiple_tag_groups() {
 	// Create first repo with tags foo,bar
 	let path1 = &temp.path().join("repo1");
 	fs::create_dir_all(path1).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/repo1_url",
-		])
-		.output()
-		.expect("git remote add failed");
+	git_init(path1);
+	git_remote_add(path1, "origin", "git://example.org/repo1_url");
 
 	// Create second repo with tags baz,boz
 	let path2 = &temp.path().join("repo2");
 	fs::create_dir_all(path2).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/repo2_url",
-		])
-		.output()
-		.expect("git remote add failed");
+	git_init(path2);
+	git_remote_add(path2, "origin", "git://example.org/repo2_url");
 
 	// Create third repo with only tag foo (should not be synced)
 	let path3 = &temp.path().join("repo3");
 	fs::create_dir_all(path3).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path3)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(path3)
-		.args(vec![
-			"remote",
-			"add",
-			"origin",
-			"git://example.org/repo3_url",
-		])
-		.output()
-		.expect("git remote add failed");
+	git_init(path3);
+	git_remote_add(path3, "origin", "git://example.org/repo3_url");
 
 	// Create initial state with tags but no remotes
 	let initial_state_toml = "[[repos]]
@@ -3243,29 +3083,17 @@ fn sync_write_remotes_with_multiple_tag_groups() {
 	// Create first repo with tags foo,bar
 	let path1 = &temp.path().join("repo1");
 	fs::create_dir_all(path1).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path1)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path1);
 
 	// Create second repo with tags baz,boz
 	let path2 = &temp.path().join("repo2");
 	fs::create_dir_all(path2).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path2)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path2);
 
 	// Create third repo with only tag foo (should not be synced)
 	let path3 = &temp.path().join("repo3");
 	fs::create_dir_all(path3).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(path3)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
+	git_init(path3);
 
 	// Create state with remotes to add
 	let initial_state_toml = "[[repos]]
@@ -3320,30 +3148,15 @@ url = \"git://example.org/repo3_origin\"
 		.stderr(predicate::str::contains("repo3").not());
 
 	// Verify only repo1 and repo2 got remotes
-	let output1 = Command::new("git")
-		.current_dir(path1)
-		.args(vec!["remote", "-v"])
-		.output()
-		.expect("git remote failed");
-	let remotes1 = String::from_utf8(output1.stdout).expect("utf8 conversion failed");
+	let remotes1 = git_remotes_verbose(path1);
 	assert!(remotes1.contains("origin"));
 	assert!(remotes1.contains("upstream"));
 
-	let output2 = Command::new("git")
-		.current_dir(path2)
-		.args(vec!["remote", "-v"])
-		.output()
-		.expect("git remote failed");
-	let remotes2 = String::from_utf8(output2.stdout).expect("utf8 conversion failed");
+	let remotes2 = git_remotes_verbose(path2);
 	assert!(remotes2.contains("origin"));
 	assert!(remotes2.contains("fork"));
 
-	let output3 = Command::new("git")
-		.current_dir(path3)
-		.args(vec!["remote", "-v"])
-		.output()
-		.expect("git remote failed");
-	let remotes3 = String::from_utf8(output3.stdout).expect("utf8 conversion failed");
+	let remotes3 = git_remotes_verbose(path3);
 	assert!(remotes3.is_empty());
 }
 
@@ -3389,12 +3202,7 @@ url = "source_zzz"
 	// Verify all three remotes exist in cloned repo with correct names
 	let cloned_path = temp.path().join("cloned_repo");
 
-	let remotes_output = Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["remote", "--verbose"])
-		.output()
-		.expect("git remote --verbose failed");
-	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+	let remotes = git_remotes_verbose(&cloned_path);
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
 	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
@@ -3455,12 +3263,7 @@ url = "source_bbb"
 	// Verify remotes in cloned repo
 	let cloned_path = temp.path().join("cloned_repo");
 
-	let remotes_output = Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["remote", "--verbose"])
-		.output()
-		.expect("git remote --verbose failed");
-	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+	let remotes = git_remotes_verbose(&cloned_path);
 
 	// git clone converts relative local paths to absolute, so strip the temp path prefix
 	// Use canonicalize to resolve symlinks (e.g., /var -> /private/var on macOS)
@@ -3495,16 +3298,8 @@ fn clone_skips_adding_remotes_when_repo_exists() {
 	// Pre-create the target repo with origin remote already configured
 	let cloned_path = temp.path().join("cloned_repo");
 	fs::create_dir_all(&cloned_path).expect("create repo dir failed");
-	Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["init", "--initial-branch", "main"])
-		.output()
-		.expect("git init failed");
-	Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["remote", "add", "origin", "existing_origin_url"])
-		.output()
-		.expect("git remote add failed");
+	git_init(&cloned_path);
+	git_remote_add(&cloned_path, "origin", "existing_origin_url");
 
 	// Create state with multiple remotes
 	let initial_state_toml = r#"[[repos]]
@@ -3532,12 +3327,7 @@ url = "source_upstream"
 		.stderr(predicate::str::contains("Warning").not());
 
 	// Verify the original remote is unchanged (not overwritten)
-	let remotes_output = Command::new("git")
-		.current_dir(&cloned_path)
-		.args(vec!["remote", "--verbose"])
-		.output()
-		.expect("git remote --verbose failed");
-	let remotes = String::from_utf8(remotes_output.stdout).expect("utf8 conversion failed");
+	let remotes = git_remotes_verbose(&cloned_path);
 
 	// Should only have the original origin remote, not the upstream from config
 	let expected_remotes = r#"origin	existing_origin_url (fetch)
@@ -3808,4 +3598,38 @@ fn exclude_unknown_repo_warns() {
 		.success()
 		.stdout("repo_a\n")
 		.stderr("Warning: --exclude 'repo_typo' doesn't match any repo\n");
+}
+
+#[test]
+fn git_impl_remote_operations() {
+	use gitopolis::git::{Git, GitImpl};
+	let temp = temp_folder();
+	let path = temp.path().join("repo");
+	fs::create_dir_all(&path).unwrap();
+	git_init(&path);
+	let path_str = path.to_str().unwrap();
+	let git = GitImpl {};
+
+	git.add_remote(path_str, "origin", "git://example.org/one");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/one".to_string())
+	);
+
+	// adding an existing remote warns and leaves it alone
+	git.add_remote(path_str, "origin", "git://example.org/other");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/one".to_string())
+	);
+
+	git.set_remote_url(path_str, "origin", "git://example.org/two");
+	assert_eq!(
+		read_git_remote_url(&path, "origin"),
+		Some("git://example.org/two".to_string())
+	);
+
+	// setting the url of a missing remote doesn't create it
+	git.set_remote_url(path_str, "missing", "git://example.org/three");
+	assert_eq!(list_git_remotes(&path), vec!["origin".to_string()]);
 }
