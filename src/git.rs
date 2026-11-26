@@ -3,7 +3,7 @@ use crate::gitopolis::GitopolisError::{GitError, GitRemoteError};
 use git2::Repository;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub trait Git {
 	fn read_url(&self, path: String, remote_name: String) -> Result<String, GitopolisError>;
@@ -109,16 +109,19 @@ impl Git for GitImpl {
 		}
 		args.push(url);
 		args.push(path);
-		let output = Command::new("git")
+		// Inherit stdio rather than capturing it, so git's output (progress, errors, and any
+		// ssh/credential prompts in context) appears live in the terminal instead of all at the end.
+		// https://github.com/timabell/gitopolis/issues/209 https://github.com/timabell/gitopolis/issues/236
+		let status = Command::new("git")
 			.args(args)
-			.output()
+			.stdin(Stdio::inherit())
+			.stdout(Stdio::inherit())
+			.stderr(Stdio::inherit())
+			.status()
 			.expect("Error running git clone");
-		let stdout = String::from_utf8(output.stdout).expect("Error converting stdout to string");
-		let stderr = String::from_utf8(output.stderr).expect("Error converting stderr to string");
-		println!("{stdout}");
-		println!("{stderr}");
+		println!();
 
-		if !output.status.success() {
+		if !status.success() {
 			return Err(GitError {
 				message: format!("Failed to clone {} to {}", url, path),
 			});

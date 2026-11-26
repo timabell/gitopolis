@@ -1062,20 +1062,16 @@ url = \"source_repo\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
 
-	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...
-
-Cloning into \'some_git_folder\'...
-warning: You appear to have cloned an empty repository.
-done.
-
-";
+	// git's own output goes straight to the terminal (stderr) so it can prompt for ssh passphrases etc.
+	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...\n\n";
 
 	gitopolis_executable()
 		.current_dir(&temp)
 		.args(vec!["clone"])
 		.assert()
 		.success()
-		.stdout(expected_clone_stdout);
+		.stdout(expected_clone_stdout)
+		.stderr(predicate::str::contains("Cloning into 'some_git_folder'"));
 
 	// check repo has been successfully cloned by running a git command on it via exec
 	let expected_exec_stdout = match get_operating_system() {
@@ -1141,20 +1137,16 @@ url = \"nonexistent_source_repo\"
 ";
 	write_gitopolis_state_toml(&temp, initial_state_toml);
 
-	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...
-
-Cloning into \'some_git_folder\'...
-warning: You appear to have cloned an empty repository.
-done.
-
-";
+	// git's own output goes straight to the terminal (stderr) so it can prompt for ssh passphrases etc.
+	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...\n\n";
 
 	gitopolis_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", "--tag", "some_tag"])
 		.assert()
 		.success()
-		.stdout(expected_clone_stdout);
+		.stdout(expected_clone_stdout)
+		.stderr(predicate::str::contains("Cloning into 'some_git_folder'"));
 
 	// check repo has been successfully cloned by running a git command on it via exec
 	let expected_exec_stdout = match get_operating_system() {
@@ -2327,7 +2319,7 @@ fn clone_with_url() {
 		.assert()
 		.success()
 		.stdout(predicate::str::contains("🏢 myrepo> Cloning"))
-		.stdout(predicate::str::contains("Cloning into 'myrepo'"));
+		.stderr(predicate::str::contains("Cloning into 'myrepo'"));
 
 	// Verify repo was added to .gitopolis.toml
 	let toml = read_gitopolis_state_toml(&temp);
